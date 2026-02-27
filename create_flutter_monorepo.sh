@@ -52,6 +52,7 @@ fi
 APP_NAMES_INPUT=$(ask "App names, comma-separated" "app")
 ORG=$(ask "Organization (reverse domain)" "com.example")
 PLATFORMS_INPUT=$(ask "Platforms, comma-separated (ios,android,web,macos,linux,windows)" "ios,android,web")
+SERVER_NAMES_INPUT=$(ask "Server names, comma-separated (enter 'none' to skip)" "none")
 BASE_URL=$(ask "API base URL" "https://api.example.com")
 
 # Parse app names into array
@@ -65,6 +66,19 @@ for name in "${APP_NAMES_RAW[@]}"; do
   APP_NAMES+=("$name")
 done
 
+# Parse server names into array
+SERVER_NAMES=()
+if [[ "$SERVER_NAMES_INPUT" != "none" ]]; then
+  IFS=',' read -ra SERVER_NAMES_RAW <<< "$SERVER_NAMES_INPUT"
+  for name in "${SERVER_NAMES_RAW[@]}"; do
+    name=$(echo "$name" | tr -d ' ')
+    if [[ ! "$name" =~ ^[a-z][a-z0-9_]*$ ]]; then
+      err "Invalid server name '$name'. Use lowercase + underscores."
+    fi
+    SERVER_NAMES+=("$name")
+  done
+fi
+
 echo ""
 
 # ── Check prerequisites ──
@@ -73,8 +87,17 @@ command -v flutter >/dev/null 2>&1 || err "flutter SDK not found."
 command -v curl    >/dev/null 2>&1 || err "curl not found."
 command -v git     >/dev/null 2>&1 || err "git not found."
 
+if [[ ${#SERVER_NAMES[@]} -gt 0 ]]; then
+  command -v python3 >/dev/null 2>&1 || err "python3 not found. Install Python 3.11+ first."
+fi
+
 DART_VERSION=$(dart --version 2>&1 | sed -n 's/.*Dart SDK version: \([0-9][0-9.]*\).*/\1/p')
 info "Dart $DART_VERSION detected"
+
+if [[ ${#SERVER_NAMES[@]} -gt 0 ]]; then
+  PYTHON_VERSION=$(python3 --version 2>&1 | sed -n 's/.*Python \([0-9][0-9.]*\).*/\1/p')
+  info "Python $PYTHON_VERSION detected"
+fi
 
 # ── Fetch latest version from pub.dev (macOS + Linux compatible) ──
 get_version() {
@@ -92,9 +115,24 @@ get_version() {
   fi
 }
 
+get_pypi_version() {
+  local pkg="$1"
+  local version
+  version=$(curl -sf "https://pypi.org/pypi/$pkg/json" \
+    | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+    | head -1) || true
+
+  if [[ -z "$version" ]]; then
+    warn "Failed to fetch version for '$pkg', using latest"
+    echo ""
+  else
+    echo "==$version"
+  fi
+}
+
 echo -e "${BOLD}📦 Fetching latest package versions from pub.dev...${NC}\n"
 
-# ── Dependencies ──
+# ── Flutter Dependencies ──
 V_MELOS=$(get_version melos)
 log "melos: ${CYAN}$V_MELOS${NC}"
 
@@ -125,6 +163,25 @@ log "build_runner: ${CYAN}$V_BUILD_RUNNER${NC}"
 
 V_FLUTTER_LINTS=$(get_version flutter_lints)
 log "flutter_lints: ${CYAN}$V_FLUTTER_LINTS${NC}"
+
+# ── Python Dependencies ──
+if [[ ${#SERVER_NAMES[@]} -gt 0 ]]; then
+  echo ""
+  echo -e "${BOLD}📦 Fetching latest package versions from PyPI...${NC}\n"
+
+  V_FASTAPI=$(get_pypi_version fastapi)
+  V_UVICORN=$(get_pypi_version uvicorn)
+  V_PYDANTIC=$(get_pypi_version pydantic)
+  V_SQLALCHEMY=$(get_pypi_version sqlalchemy)
+  V_ALEMBIC=$(get_pypi_version alembic)
+  V_HTTPX=$(get_pypi_version httpx)
+  V_PYTEST=$(get_pypi_version pytest)
+  V_RUFF=$(get_pypi_version ruff)
+  log "fastapi: ${CYAN}${V_FASTAPI:-latest}${NC}"
+  log "uvicorn: ${CYAN}${V_UVICORN:-latest}${NC}"
+  log "pydantic: ${CYAN}${V_PYDANTIC:-latest}${NC}"
+  log "sqlalchemy: ${CYAN}${V_SQLALCHEMY:-latest}${NC}"
+fi
 
 echo ""
 
@@ -208,6 +265,18 @@ build/
 # Generated
 *.g.dart
 *.freezed.dart
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+
+# Environment
+.env
+.env.*
+!.env.example
 
 # OS
 .DS_Store
@@ -639,7 +708,6 @@ mkdir -p "apps/$APP_NAME/lib/ui/example" \
          "apps/$APP_NAME/lib/provider" \
          "apps/$APP_NAME/lib/router"
 
-# Overwrite pubspec.yaml with workspace deps
 cat > "apps/$APP_NAME/pubspec.yaml" << YAML
 name: $APP_NAME
 description: Flutter application
@@ -672,7 +740,6 @@ cat > "apps/$APP_NAME/analysis_options.yaml" << 'YAML'
 include: package:lint_rules/analysis_options.yaml
 YAML
 
-# Overwrite main.dart
 cat > "apps/$APP_NAME/lib/main.dart" << 'DART'
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -809,6 +876,332 @@ log "apps/$APP_NAME (monorepo setup)"
 done
 
 # ══════════════════════════════════════
+# servers (FastAPI)
+# ══════════════════════════════════════
+if [[ ${#SERVER_NAMES[@]} -gt 0 ]]; then
+
+  mkdir -p servers
+
+  # ── shared (only when 2+ servers) ──
+  if [[ ${#SERVER_NAMES[@]} -gt 1 ]]; then
+    mkdir -p servers/shared/models servers/shared/utils
+
+    cat > servers/shared/__init__.py << 'PY'
+PY
+
+    cat > servers/shared/models/__init__.py << 'PY'
+PY
+
+    cat > servers/shared/models/example.py << 'PY'
+from pydantic import BaseModel
+
+
+class ExampleBase(BaseModel):
+    name: str
+
+
+class ExampleCreate(ExampleBase):
+    pass
+
+
+class ExampleResponse(ExampleBase):
+    id: str
+
+    model_config = {"from_attributes": True}
+PY
+
+    cat > servers/shared/utils/__init__.py << 'PY'
+PY
+
+    cat > servers/shared/utils/config.py << 'PY'
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    database_url: str = "sqlite+aiosqlite:///./dev.db"
+    debug: bool = True
+
+    model_config = {"env_file": ".env"}
+
+
+settings = Settings()
+PY
+
+    log "servers/shared"
+  fi
+
+  # ── Each server ──
+  for SERVER_NAME in "${SERVER_NAMES[@]}"; do
+
+    info "Creating FastAPI server ${BOLD}$SERVER_NAME${NC}..."
+
+    mkdir -p "servers/$SERVER_NAME/app/api/v1/endpoints" \
+             "servers/$SERVER_NAME/app/core" \
+             "servers/$SERVER_NAME/app/models" \
+             "servers/$SERVER_NAME/app/schemas" \
+             "servers/$SERVER_NAME/app/repositories" \
+             "servers/$SERVER_NAME/app/services" \
+             "servers/$SERVER_NAME/tests"
+
+    # requirements.txt
+    cat > "servers/$SERVER_NAME/requirements.txt" << REQS
+fastapi${V_FASTAPI}
+uvicorn[standard]${V_UVICORN}
+pydantic${V_PYDANTIC}
+pydantic-settings
+sqlalchemy${V_SQLALCHEMY}
+alembic${V_ALEMBIC}
+httpx${V_HTTPX}
+pytest${V_PYTEST}
+ruff${V_RUFF}
+REQS
+
+    # Dockerfile
+    cat > "servers/$SERVER_NAME/Dockerfile" << 'DOCKER'
+FROM python:3.13-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+DOCKER
+
+    # .env.example
+    cat > "servers/$SERVER_NAME/.env.example" << 'ENV'
+DATABASE_URL=sqlite+aiosqlite:///./dev.db
+DEBUG=true
+ENV
+
+    # app/__init__.py
+    cat > "servers/$SERVER_NAME/app/__init__.py" << 'PY'
+PY
+
+    # app/main.py
+    cat > "servers/$SERVER_NAME/app/main.py" << PY
+from fastapi import FastAPI
+
+from app.api.v1.router import api_router
+
+app = FastAPI(title="$SERVER_NAME")
+
+app.include_router(api_router, prefix="/api/v1")
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+PY
+
+    # app/core/__init__.py
+    cat > "servers/$SERVER_NAME/app/core/__init__.py" << 'PY'
+PY
+
+    # app/core/config.py
+    cat > "servers/$SERVER_NAME/app/core/config.py" << 'PY'
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    database_url: str = "sqlite+aiosqlite:///./dev.db"
+    debug: bool = True
+
+    model_config = {"env_file": ".env"}
+
+
+settings = Settings()
+PY
+
+    # app/core/database.py
+    cat > "servers/$SERVER_NAME/app/core/database.py" << 'PY'
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.orm import DeclarativeBase
+
+from app.core.config import settings
+
+engine = create_async_engine(settings.database_url, echo=settings.debug)
+async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+async def get_db():
+    async with async_session() as session:
+        yield session
+PY
+
+    # app/models/__init__.py
+    cat > "servers/$SERVER_NAME/app/models/__init__.py" << 'PY'
+PY
+
+    # app/models/example.py
+    cat > "servers/$SERVER_NAME/app/models/example.py" << 'PY'
+from sqlalchemy import String
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.core.database import Base
+
+
+class ExampleModel(Base):
+    __tablename__ = "examples"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str] = mapped_column(String(255))
+PY
+
+    # app/schemas/__init__.py
+    cat > "servers/$SERVER_NAME/app/schemas/__init__.py" << 'PY'
+PY
+
+    # app/schemas/example.py
+    cat > "servers/$SERVER_NAME/app/schemas/example.py" << 'PY'
+from pydantic import BaseModel
+
+
+class ExampleBase(BaseModel):
+    name: str
+
+
+class ExampleCreate(ExampleBase):
+    pass
+
+
+class ExampleResponse(ExampleBase):
+    id: str
+
+    model_config = {"from_attributes": True}
+PY
+
+    # app/repositories/__init__.py
+    cat > "servers/$SERVER_NAME/app/repositories/__init__.py" << 'PY'
+PY
+
+    # app/repositories/example_repository.py
+    cat > "servers/$SERVER_NAME/app/repositories/example_repository.py" << 'PY'
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.example import ExampleModel
+
+
+class ExampleRepository:
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def get_by_id(self, id: str) -> ExampleModel | None:
+        return await self.db.get(ExampleModel, id)
+
+    async def get_all(self) -> list[ExampleModel]:
+        result = await self.db.execute(select(ExampleModel))
+        return list(result.scalars().all())
+
+    async def create(self, model: ExampleModel) -> ExampleModel:
+        self.db.add(model)
+        await self.db.commit()
+        await self.db.refresh(model)
+        return model
+PY
+
+    # app/services/__init__.py
+    cat > "servers/$SERVER_NAME/app/services/__init__.py" << 'PY'
+PY
+
+    # app/services/example_service.py
+    cat > "servers/$SERVER_NAME/app/services/example_service.py" << 'PY'
+import uuid
+
+from app.models.example import ExampleModel
+from app.repositories.example_repository import ExampleRepository
+from app.schemas.example import ExampleCreate
+
+
+class ExampleService:
+    def __init__(self, repository: ExampleRepository):
+        self.repository = repository
+
+    async def get_by_id(self, id: str) -> ExampleModel | None:
+        return await self.repository.get_by_id(id)
+
+    async def get_all(self) -> list[ExampleModel]:
+        return await self.repository.get_all()
+
+    async def create(self, data: ExampleCreate) -> ExampleModel:
+        model = ExampleModel(id=str(uuid.uuid4()), name=data.name)
+        return await self.repository.create(model)
+PY
+
+    # app/api/__init__.py
+    cat > "servers/$SERVER_NAME/app/api/__init__.py" << 'PY'
+PY
+
+    # app/api/v1/__init__.py
+    cat > "servers/$SERVER_NAME/app/api/v1/__init__.py" << 'PY'
+PY
+
+    # app/api/v1/router.py
+    cat > "servers/$SERVER_NAME/app/api/v1/router.py" << 'PY'
+from fastapi import APIRouter
+
+from app.api.v1.endpoints import example
+
+api_router = APIRouter()
+api_router.include_router(example.router, prefix="/examples", tags=["examples"])
+PY
+
+    # app/api/v1/endpoints/__init__.py
+    cat > "servers/$SERVER_NAME/app/api/v1/endpoints/__init__.py" << 'PY'
+PY
+
+    # app/api/v1/endpoints/example.py
+    cat > "servers/$SERVER_NAME/app/api/v1/endpoints/example.py" << 'PY'
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.repositories.example_repository import ExampleRepository
+from app.schemas.example import ExampleCreate, ExampleResponse
+from app.services.example_service import ExampleService
+
+router = APIRouter()
+
+
+def get_service(db: AsyncSession = Depends(get_db)) -> ExampleService:
+    return ExampleService(ExampleRepository(db))
+
+
+@router.get("/", response_model=list[ExampleResponse])
+async def get_all(service: ExampleService = Depends(get_service)):
+    return await service.get_all()
+
+
+@router.get("/{id}", response_model=ExampleResponse)
+async def get_by_id(id: str, service: ExampleService = Depends(get_service)):
+    result = await service.get_by_id(id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    return result
+
+
+@router.post("/", response_model=ExampleResponse, status_code=201)
+async def create(data: ExampleCreate, service: ExampleService = Depends(get_service)):
+    return await service.create(data)
+PY
+
+    # tests/__init__.py
+    cat > "servers/$SERVER_NAME/tests/__init__.py" << 'PY'
+PY
+
+    log "servers/$SERVER_NAME"
+
+  done
+fi
+
+# ══════════════════════════════════════
 # Git init
 # ══════════════════════════════════════
 git init -q
@@ -824,11 +1217,27 @@ APPS_LIST=${APPS_LIST:2}
 
 echo -e "\n${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${BOLD}${GREEN}✅ Monorepo created: ${CYAN}$PROJECT_NAME${NC}"
-echo -e "   Apps: ${CYAN}$APPS_LIST${NC}\n"
-echo -e "Next steps:\n"
+echo -e "   Apps: ${CYAN}$APPS_LIST${NC}"
+
+if [[ ${#SERVER_NAMES[@]} -gt 0 ]]; then
+  SERVERS_LIST=$(printf ", %s" "${SERVER_NAMES[@]}")
+  SERVERS_LIST=${SERVERS_LIST:2}
+  echo -e "   Servers: ${CYAN}$SERVERS_LIST${NC}"
+fi
+
+echo -e "\nNext steps:\n"
 echo -e "  ${CYAN}cd $PROJECT_NAME${NC}"
 echo -e "  ${CYAN}dart pub get${NC}                 ${DIM}# Install root deps${NC}"
 echo -e "  ${CYAN}dart pub global activate melos${NC} ${DIM}# Install melos CLI${NC}"
 echo -e "  ${CYAN}melos bootstrap${NC}              ${DIM}# Link all packages${NC}"
 echo -e "  ${CYAN}melos run gen${NC}                ${DIM}# Generate freezed + retrofit + riverpod${NC}"
+
+if [[ ${#SERVER_NAMES[@]} -gt 0 ]]; then
+  echo -e ""
+  for SERVER_NAME in "${SERVER_NAMES[@]}"; do
+    echo -e "  ${CYAN}cd servers/$SERVER_NAME && pip install -r requirements.txt${NC}"
+    echo -e "  ${CYAN}uvicorn app.main:app --reload${NC}  ${DIM}# Run $SERVER_NAME${NC}"
+  done
+fi
+
 echo -e ""
