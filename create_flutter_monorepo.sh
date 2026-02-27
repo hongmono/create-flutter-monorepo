@@ -138,11 +138,6 @@ log "build_runner: ${CYAN}$V_BUILD_RUNNER${NC}"
 V_FLUTTER_LINTS=$(get_version flutter_lints)
 log "flutter_lints: ${CYAN}$V_FLUTTER_LINTS${NC}"
 
-V_WIDGETBOOK=$(get_version widgetbook)
-V_WIDGETBOOK_ANNOTATION=$(get_version widgetbook_annotation)
-V_WIDGETBOOK_GENERATOR=$(get_version widgetbook_generator)
-log "widgetbook: ${CYAN}$V_WIDGETBOOK${NC}"
-
 echo ""
 
 # ── Create root directory ──
@@ -183,8 +178,7 @@ environment:
   sdk: ^3.9.0
 
 workspace:
-${WORKSPACE_APPS}  - apps/widgetbook
-  - packages/design_system
+${WORKSPACE_APPS}  - packages/design_system
   - packages/core
   - packages/network
   - packages/lint_rules
@@ -669,105 +663,6 @@ DART
 log "packages/design_system"
 else
   info "Skipping (exists): ${DIM}packages/design_system${NC}"
-fi
-
-# ══════════════════════════════════════
-# apps/widgetbook
-# ══════════════════════════════════════
-if [[ ! -d "apps/widgetbook" ]]; then
-mkdir -p apps/widgetbook/lib/src
-
-cat > apps/widgetbook/pubspec.yaml << YAML
-name: widgetbook_app
-description: Widgetbook catalog for design_system
-publish_to: none
-resolution: workspace
-version: 1.0.0+1
-
-environment:
-  sdk: ^3.9.0
-  flutter: ">=3.29.0"
-
-dependencies:
-  flutter:
-    sdk: flutter
-  design_system:
-  widgetbook: $V_WIDGETBOOK
-  widgetbook_annotation: $V_WIDGETBOOK_ANNOTATION
-
-dev_dependencies:
-  build_runner: $V_BUILD_RUNNER
-  widgetbook_generator: $V_WIDGETBOOK_GENERATOR
-YAML
-
-cat > apps/widgetbook/analysis_options.yaml << 'YAML'
-include: package:lint_rules/analysis_options.yaml
-YAML
-
-cat > apps/widgetbook/lib/main.dart << 'DART'
-import 'package:flutter/material.dart';
-import 'package:widgetbook/widgetbook.dart';
-import 'package:widgetbook_annotation/widgetbook_annotation.dart' as widgetbook;
-
-import 'main.directories.g.dart';
-
-void main() {
-  runApp(const WidgetbookApp());
-}
-
-@widgetbook.App()
-class WidgetbookApp extends StatelessWidget {
-  const WidgetbookApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Widgetbook.material(
-      directories: directories,
-    );
-  }
-}
-DART
-
-cat > apps/widgetbook/lib/src/app_button_use_case.dart << 'DART'
-import 'package:flutter/material.dart';
-import 'package:widgetbook/widgetbook.dart';
-import 'package:widgetbook_annotation/widgetbook_annotation.dart' as widgetbook;
-import 'package:design_system/design_system.dart';
-
-@widgetbook.UseCase(name: 'Primary', type: AppButton)
-Widget buildAppButtonPrimary(BuildContext context) {
-  return AppButton(
-    label: context.knobs.string(label: 'Label', initialValue: 'Button'),
-    variant: AppButtonVariant.primary,
-    isLoading: context.knobs.boolean(label: 'Loading', initialValue: false),
-    onPressed: () {},
-  );
-}
-
-@widgetbook.UseCase(name: 'Secondary', type: AppButton)
-Widget buildAppButtonSecondary(BuildContext context) {
-  return AppButton(
-    label: context.knobs.string(label: 'Label', initialValue: 'Button'),
-    variant: AppButtonVariant.secondary,
-    isLoading: context.knobs.boolean(label: 'Loading', initialValue: false),
-    onPressed: () {},
-  );
-}
-
-@widgetbook.UseCase(name: 'Text', type: AppButton)
-Widget buildAppButtonText(BuildContext context) {
-  return AppButton(
-    label: context.knobs.string(label: 'Label', initialValue: 'Button'),
-    variant: AppButtonVariant.text,
-    isLoading: context.knobs.boolean(label: 'Loading', initialValue: false),
-    onPressed: () {},
-  );
-}
-DART
-
-log "apps/widgetbook"
-else
-  info "Skipping (exists): ${DIM}apps/widgetbook${NC}"
 fi
 
 # ══════════════════════════════════════

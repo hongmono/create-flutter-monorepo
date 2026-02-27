@@ -1,6 +1,6 @@
 # create-flutter-monorepo
 
-Flutter Melos v7 monorepo scaffolder with Riverpod + Retrofit + Dio + Widgetbook.
+Flutter Melos v7 monorepo scaffolder with Riverpod + Retrofit + Dio.
 
 ## Usage
 
@@ -33,11 +33,7 @@ my_project/
 │   │   │   ├── data/
 │   │   │   └── ui/example/
 │   │   └── pubspec.yaml
-│   ├── admin/               → Flutter app (flutter create)
-│   └── widgetbook/          → Widgetbook catalog
-│       └── lib/
-│           ├── main.dart
-│           └── src/         → Use cases per widget
+│   └── admin/               → Flutter app (flutter create)
 ├── packages/
 │   ├── core/                → Domain models + abstract repositories (freezed)
 │   ├── network/             → Dio + Retrofit services + DTOs
@@ -57,18 +53,11 @@ melos bootstrap
 melos run gen
 ```
 
-### Run Widgetbook
-
-```bash
-cd apps/widgetbook
-flutter run -d chrome
-```
-
 ## Melos scripts
 
 | Command | Description |
 |---------|-------------|
-| `melos run gen` | Run build_runner (freezed + retrofit + riverpod + widgetbook) |
+| `melos run gen` | Run build_runner (freezed + retrofit + riverpod) |
 | `melos run gen:watch` | Watch mode for build_runner |
 | `melos run test` | Run tests in all packages |
 | `melos run analyze` | Analyze all packages |
@@ -81,5 +70,5 @@ flutter run -d chrome
 - **Routing**: GoRouter
 - **HTTP**: Dio + Retrofit
 - **Code Generation**: Freezed, json_serializable, riverpod_generator
-- **Design System**: Widgetbook (widget catalog with knobs)
+- **Design System**: Shared design tokens + theme + widgets
 - **Monorepo**: Melos v7 + Pub Workspaces
