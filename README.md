@@ -39,14 +39,14 @@ my_project/
 │   ├── client/                        → Flutter app
 │   │   └── lib/
 │   │       ├── main.dart
-│   │       ├── di/                    → Dependency injection (Riverpod providers)
+│   │       ├── di/                    → DI (GetIt + Injectable → Riverpod bridge)
 │   │       └── presentation/          → UI layer
 │   │           ├── router/            → GoRouter
 │   │           └── example/           → Feature: screen + notifier
 │   └── admin/                         → Flutter app
 ├── packages/
 │   ├── domain/                        → DDD Domain: entities, abstract repos, failures
-│   ├── data/                          → DDD Data: repo impl, remote datasources, DTOs, Dio
+│   ├── data/                          → DDD Data: repo impl, datasources, DTOs, Dio (Injectable)
 │   ├── design_system/                 → Theme, tokens, shared widgets
 │   └── lint_rules/                    → Shared analysis_options
 ├── pubspec.yaml                       → Workspace root + Melos config
@@ -74,10 +74,11 @@ melos run gen
 
 ## Stack
 
-- **State Management**: Riverpod 3.0 (with code generation)
+- **State Management**: Riverpod 3.0 (UI state only)
+- **DI**: GetIt + Injectable (service layer)
 - **Routing**: GoRouter
 - **Architecture**: DDD (Domain-Driven Design)
-- **HTTP**: Dio (Riverpod-managed) + Retrofit
+- **HTTP**: Dio + Retrofit
 - **Code Generation**: Freezed, json_serializable, riverpod_generator
 - **Design System**: Shared design tokens + theme + widgets
 - **Monorepo**: Melos v7 + Pub Workspaces

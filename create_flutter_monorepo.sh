@@ -169,6 +169,13 @@ log "freezed_annotation: ${CYAN}$V_FREEZED_ANNOTATION${NC}"
 log "freezed: ${CYAN}$V_FREEZED${NC}"
 log "build_runner: ${CYAN}$V_BUILD_RUNNER${NC}"
 
+V_GET_IT=$(get_version get_it)
+V_INJECTABLE=$(get_version injectable)
+V_INJECTABLE_GENERATOR=$(get_version injectable_generator)
+log "get_it: ${CYAN}$V_GET_IT${NC}"
+log "injectable: ${CYAN}$V_INJECTABLE${NC}"
+log "injectable_generator: ${CYAN}$V_INJECTABLE_GENERATOR${NC}"
+
 V_FLUTTER_LINTS=$(get_version flutter_lints)
 log "flutter_lints: ${CYAN}$V_FLUTTER_LINTS${NC}"
 
@@ -267,6 +274,7 @@ build/
 # Generated
 *.g.dart
 *.freezed.dart
+*.config.dart
 
 # OS
 .DS_Store
@@ -303,8 +311,8 @@ melos run gen
 $PROJECT_NAME/
 ├── apps/                  # Flutter applications
 ${WORKSPACE_APPS}├── packages/
-│   ├── domain/            # Entities, abstract repositories, failures (pure Dart)
-│   ├── data/              # Repository impl, remote datasources, DTOs, Dio
+│   ├── domain/            # Entities, abstract repos, failures (pure Dart)
+│   ├── data/              # Repo impl, datasources, DTOs, Dio (Injectable)
 │   ├── design_system/     # Theme, tokens, shared widgets
 │   └── lint_rules/        # Shared analysis options
 └── pubspec.yaml           # Workspace root
@@ -445,7 +453,7 @@ fi
 #   Repository impl, remote datasources, DTOs, Dio
 # ══════════════════════════════════════
 if [[ ! -d "packages/data" ]]; then
-mkdir -p packages/data/lib/src/{repository,datasource/remote/dto,network/interceptor}
+mkdir -p packages/data/lib/src/{di,repository,datasource/remote/dto,network/interceptor}
 
 cat > packages/data/pubspec.yaml << YAML
 name: data
@@ -462,12 +470,15 @@ dependencies:
   retrofit: $V_RETROFIT
   freezed_annotation: $V_FREEZED_ANNOTATION
   json_annotation: $V_JSON_ANNOTATION
+  get_it: $V_GET_IT
+  injectable: $V_INJECTABLE
 
 dev_dependencies:
   build_runner: $V_BUILD_RUNNER
   retrofit_generator: $V_RETROFIT_GENERATOR
   freezed: $V_FREEZED
   json_serializable: $V_JSON_SERIALIZABLE
+  injectable_generator: $V_INJECTABLE_GENERATOR
 YAML
 
 cat > packages/data/analysis_options.yaml << 'YAML'
@@ -475,6 +486,9 @@ include: package:lint_rules/analysis_options.yaml
 YAML
 
 cat > packages/data/lib/data.dart << 'DART'
+// DI
+export 'src/di/data_injection.dart';
+
 // Network
 export 'src/network/dio_client.dart';
 
@@ -483,6 +497,34 @@ export 'src/datasource/remote/example_remote_datasource.dart';
 
 // Repositories
 export 'src/repository/example_repository_impl.dart';
+DART
+
+cat > packages/data/lib/src/di/data_injection.dart << 'DART'
+import 'package:get_it/get_it.dart';
+import 'package:injectable/injectable.dart';
+
+import 'data_injection.config.dart';
+
+@InjectableInit.microPackage()
+void initDataPackage(GetIt getIt) => getIt.init();
+DART
+
+cat > packages/data/lib/src/di/data_module.dart << DART
+import 'package:dio/dio.dart';
+import 'package:injectable/injectable.dart';
+
+import '../network/dio_client.dart';
+import '../datasource/remote/example_remote_datasource.dart';
+
+@module
+abstract class DataModule {
+  @singleton
+  Dio get dio => createDio();
+
+  @injectable
+  ExampleRemoteDataSource exampleRemoteDataSource(Dio dio) =>
+      ExampleRemoteDataSource(dio);
+}
 DART
 
 cat > packages/data/lib/src/network/dio_client.dart << DART
@@ -581,9 +623,11 @@ DART
 
 cat > packages/data/lib/src/repository/example_repository_impl.dart << 'DART'
 import 'package:domain/domain.dart';
+import 'package:injectable/injectable.dart';
 
 import '../datasource/remote/example_remote_datasource.dart';
 
+@Injectable(as: ExampleRepository)
 class ExampleRepositoryImpl implements ExampleRepository {
   ExampleRepositoryImpl(this._remoteDataSource);
 
@@ -802,7 +846,8 @@ dependencies:
   domain:
   data:
   design_system:
-  dio: $V_DIO
+  get_it: $V_GET_IT
+  injectable: $V_INJECTABLE
   flutter_riverpod: $V_FLUTTER_RIVERPOD
   riverpod_annotation: $V_RIVERPOD_ANNOTATION
   go_router: $V_GO_ROUTER
@@ -811,6 +856,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   build_runner: $V_BUILD_RUNNER
+  injectable_generator: $V_INJECTABLE_GENERATOR
   riverpod_generator: $V_RIVERPOD_GENERATOR
 YAML
 
@@ -823,9 +869,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:design_system/design_system.dart';
 
+import 'di/injection.dart';
 import 'presentation/router/app_router.dart';
 
 void main() {
+  configureDependencies();
   runApp(const ProviderScope(child: MyApp()));
 }
 
@@ -869,24 +917,32 @@ GoRouter appRouter(Ref ref) {
 }
 DART
 
-cat > "apps/$APP_NAME/lib/di/providers.dart" << 'DART'
+cat > "apps/$APP_NAME/lib/di/injection.dart" << 'DART'
 import 'package:data/data.dart';
-import 'package:dio/dio.dart';
+import 'package:get_it/get_it.dart';
+import 'package:injectable/injectable.dart';
+
+import 'injection.config.dart';
+
+final getIt = GetIt.instance;
+
+@InjectableInit(
+  externalPackageModulesBefore: [ExternalModule(initDataPackage)],
+)
+void configureDependencies() => getIt.init();
+DART
+
+cat > "apps/$APP_NAME/lib/di/providers.dart" << 'DART'
 import 'package:domain/domain.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import 'injection.dart';
+
 part 'providers.g.dart';
 
+/// GetIt → Riverpod bridge (UI layer에서 사용)
 @riverpod
-Dio dio(Ref ref) => createDio();
-
-@riverpod
-ExampleRemoteDataSource exampleRemoteDataSource(Ref ref) =>
-    ExampleRemoteDataSource(ref.watch(dioProvider));
-
-@riverpod
-ExampleRepository exampleRepository(Ref ref) =>
-    ExampleRepositoryImpl(ref.watch(exampleRemoteDataSourceProvider));
+ExampleRepository exampleRepository(Ref ref) => getIt<ExampleRepository>();
 DART
 
 cat > "apps/$APP_NAME/lib/presentation/example/example_notifier.dart" << 'DART'
