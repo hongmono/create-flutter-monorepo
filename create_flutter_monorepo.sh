@@ -49,7 +49,19 @@ if [[ -d "$PROJECT_NAME" ]]; then
   err "Directory '$PROJECT_NAME' already exists."
 fi
 
+APP_NAMES_INPUT=$(ask "App names, comma-separated" "app")
 BASE_URL=$(ask "API base URL" "https://api.example.com")
+
+# Parse app names into array
+IFS=',' read -ra APP_NAMES_RAW <<< "$APP_NAMES_INPUT"
+APP_NAMES=()
+for name in "${APP_NAMES_RAW[@]}"; do
+  name=$(echo "$name" | tr -d ' ')
+  if [[ ! "$name" =~ ^[a-z][a-z0-9_]*$ ]]; then
+    err "Invalid app name '$name'. Use lowercase + underscores."
+  fi
+  APP_NAMES+=("$name")
+done
 
 echo ""
 
@@ -120,6 +132,13 @@ info "Creating project: ${BOLD}$PROJECT_NAME${NC}"
 mkdir -p "$PROJECT_NAME"
 cd "$PROJECT_NAME"
 
+# ── Build workspace entries ──
+WORKSPACE_APPS=""
+for app_name in "${APP_NAMES[@]}"; do
+  WORKSPACE_APPS+="  - apps/$app_name
+"
+done
+
 # ── Root pubspec.yaml ──
 cat > pubspec.yaml << YAML
 name: $PROJECT_NAME
@@ -129,8 +148,7 @@ environment:
   sdk: ^3.9.0
 
 workspace:
-  - apps/app
-  - packages/design_system
+${WORKSPACE_APPS}  - packages/design_system
   - packages/core
   - packages/network
   - packages/lint_rules
@@ -607,13 +625,18 @@ DART
 log "packages/design_system"
 
 # ══════════════════════════════════════
-# apps/app
+# apps (loop)
 # ══════════════════════════════════════
-mkdir -p apps/app/lib/{ui/example,data,provider,router}
+for APP_NAME in "${APP_NAMES[@]}"; do
 
-cat > apps/app/pubspec.yaml << YAML
-name: app
-description: Main Flutter application
+mkdir -p "apps/$APP_NAME/lib/ui/example" \
+         "apps/$APP_NAME/lib/data" \
+         "apps/$APP_NAME/lib/provider" \
+         "apps/$APP_NAME/lib/router"
+
+cat > "apps/$APP_NAME/pubspec.yaml" << YAML
+name: $APP_NAME
+description: Flutter application
 publish_to: none
 resolution: workspace
 version: 1.0.0+1
@@ -639,11 +662,11 @@ dev_dependencies:
   riverpod_generator: $V_RIVERPOD_GENERATOR
 YAML
 
-cat > apps/app/analysis_options.yaml << 'YAML'
+cat > "apps/$APP_NAME/analysis_options.yaml" << 'YAML'
 include: package:lint_rules/analysis_options.yaml
 YAML
 
-cat > apps/app/lib/main.dart << 'DART'
+cat > "apps/$APP_NAME/lib/main.dart" << 'DART'
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:design_system/design_system.dart';
@@ -671,7 +694,7 @@ class MyApp extends ConsumerWidget {
 }
 DART
 
-cat > apps/app/lib/router/app_router.dart << 'DART'
+cat > "apps/$APP_NAME/lib/router/app_router.dart" << 'DART'
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -691,7 +714,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 });
 DART
 
-cat > apps/app/lib/provider/providers.dart << 'DART'
+cat > "apps/$APP_NAME/lib/provider/providers.dart" << 'DART'
 import 'package:core/core.dart';
 import 'package:network/network.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -708,7 +731,7 @@ ExampleRepository exampleRepository(ref) =>
     ExampleRepositoryImpl(ref.watch(exampleServiceProvider));
 DART
 
-cat > apps/app/lib/data/example_repository_impl.dart << 'DART'
+cat > "apps/$APP_NAME/lib/data/example_repository_impl.dart" << 'DART'
 import 'package:core/core.dart';
 import 'package:network/network.dart';
 
@@ -731,7 +754,7 @@ class ExampleRepositoryImpl implements ExampleRepository {
 }
 DART
 
-cat > apps/app/lib/ui/example/example_notifier.dart << 'DART'
+cat > "apps/$APP_NAME/lib/ui/example/example_notifier.dart" << 'DART'
 import 'package:core/core.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -749,7 +772,7 @@ class ExampleNotifier extends _$ExampleNotifier {
 }
 DART
 
-cat > apps/app/lib/ui/example/example_screen.dart << 'DART'
+cat > "apps/$APP_NAME/lib/ui/example/example_screen.dart" << 'DART'
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -774,7 +797,9 @@ class ExampleScreen extends ConsumerWidget {
 }
 DART
 
-log "apps/app"
+log "apps/$APP_NAME"
+
+done
 
 # ══════════════════════════════════════
 # Git init
@@ -787,13 +812,16 @@ log "git initialized with initial commit"
 # ══════════════════════════════════════
 # Done
 # ══════════════════════════════════════
+APPS_LIST=$(printf ", %s" "${APP_NAMES[@]}")
+APPS_LIST=${APPS_LIST:2}
+
 echo -e "\n${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BOLD}${GREEN}✅ Monorepo created: ${CYAN}$PROJECT_NAME${NC}\n"
+echo -e "${BOLD}${GREEN}✅ Monorepo created: ${CYAN}$PROJECT_NAME${NC}"
+echo -e "   Apps: ${CYAN}$APPS_LIST${NC}\n"
 echo -e "Next steps:\n"
 echo -e "  ${CYAN}cd $PROJECT_NAME${NC}"
 echo -e "  ${CYAN}dart pub get${NC}                 ${DIM}# Install root deps${NC}"
 echo -e "  ${CYAN}dart pub global activate melos${NC} ${DIM}# Install melos CLI${NC}"
 echo -e "  ${CYAN}melos bootstrap${NC}              ${DIM}# Link all packages${NC}"
 echo -e "  ${CYAN}melos run gen${NC}                ${DIM}# Generate freezed + retrofit + riverpod${NC}"
-echo -e "  ${CYAN}cd apps/app && flutter run${NC}   ${DIM}# Run the app${NC}"
 echo -e ""
