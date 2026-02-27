@@ -1,6 +1,6 @@
 # create-flutter-monorepo
 
-Flutter Melos v7 monorepo scaffolder with Riverpod 3.0 + Retrofit + Dio + Freezed.
+Flutter Melos v7 monorepo scaffolder with **DDD architecture** — Riverpod 3.0 + Retrofit + Dio + Freezed.
 
 ## Prerequisites
 
@@ -36,21 +36,20 @@ curl -sL https://raw.githubusercontent.com/hongmono/create-flutter-monorepo/main
 ```
 my_project/
 ├── apps/
-│   ├── client/              → Flutter app (flutter create)
-│   │   ├── lib/
-│   │   │   ├── main.dart
-│   │   │   ├── router/      → GoRouter (riverpod_annotation)
-│   │   │   ├── provider/    → Riverpod providers (Dio, services, repositories)
-│   │   │   ├── data/        → Repository implementations
-│   │   │   └── ui/example/  → Example screen + notifier
-│   │   └── pubspec.yaml
-│   └── admin/               → Flutter app (flutter create)
+│   ├── client/                        → Flutter app
+│   │   └── lib/
+│   │       ├── main.dart
+│   │       ├── di/                    → Dependency injection (Riverpod providers)
+│   │       └── presentation/          → UI layer
+│   │           ├── router/            → GoRouter
+│   │           └── example/           → Feature: screen + notifier
+│   └── admin/                         → Flutter app
 ├── packages/
-│   ├── core/                → Domain models (Freezed) + abstract repositories
-│   ├── network/             → Dio client factory + Retrofit services + DTOs
-│   ├── design_system/       → Design tokens + theme + shared widgets
-│   └── lint_rules/          → Shared analysis_options
-├── pubspec.yaml             → Pub Workspaces root + Melos config
+│   ├── domain/                        → DDD Domain: entities, abstract repos, failures
+│   ├── data/                          → DDD Data: repo impl, remote datasources, DTOs, Dio
+│   ├── design_system/                 → Theme, tokens, shared widgets
+│   └── lint_rules/                    → Shared analysis_options
+├── pubspec.yaml                       → Workspace root + Melos config
 └── README.md
 ```
 
@@ -77,6 +76,7 @@ melos run gen
 
 - **State Management**: Riverpod 3.0 (with code generation)
 - **Routing**: GoRouter
+- **Architecture**: DDD (Domain-Driven Design)
 - **HTTP**: Dio (Riverpod-managed) + Retrofit
 - **Code Generation**: Freezed, json_serializable, riverpod_generator
 - **Design System**: Shared design tokens + theme + widgets

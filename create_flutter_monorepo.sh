@@ -214,9 +214,9 @@ environment:
   sdk: ^$DART_MAJOR_MINOR.0
 
 workspace:
-${WORKSPACE_APPS}  - packages/design_system
-  - packages/core
-  - packages/network
+${WORKSPACE_APPS}  - packages/domain
+  - packages/data
+  - packages/design_system
   - packages/lint_rules
 
 dev_dependencies:
@@ -303,8 +303,8 @@ melos run gen
 $PROJECT_NAME/
 ├── apps/                  # Flutter applications
 ${WORKSPACE_APPS}├── packages/
-│   ├── core/              # Domain models (Freezed) & abstract repositories
-│   ├── network/           # Dio client, Retrofit services, DTOs
+│   ├── domain/            # Entities, abstract repositories, failures (pure Dart)
+│   ├── data/              # Repository impl, remote datasources, DTOs, Dio
 │   ├── design_system/     # Theme, tokens, shared widgets
 │   └── lint_rules/        # Shared analysis options
 └── pubspec.yaml           # Workspace root
@@ -364,14 +364,15 @@ else
 fi
 
 # ══════════════════════════════════════
-# packages/core
+# packages/domain  (DDD Domain Layer)
+#   Pure Dart — entities, abstract repos, failures
 # ══════════════════════════════════════
-if [[ ! -d "packages/core" ]]; then
-mkdir -p packages/core/lib/src/{model,repository}
+if [[ ! -d "packages/domain" ]]; then
+mkdir -p packages/domain/lib/src/{entity,repository,failure}
 
-cat > packages/core/pubspec.yaml << YAML
-name: core
-description: Domain models and abstract repositories
+cat > packages/domain/pubspec.yaml << YAML
+name: domain
+description: "DDD Domain Layer: entities, abstract repositories, and failures"
 publish_to: none
 resolution: workspace
 
@@ -386,16 +387,17 @@ dev_dependencies:
   freezed: $V_FREEZED
 YAML
 
-cat > packages/core/analysis_options.yaml << 'YAML'
+cat > packages/domain/analysis_options.yaml << 'YAML'
 include: package:lint_rules/analysis_options.yaml
 YAML
 
-cat > packages/core/lib/core.dart << 'DART'
-export 'src/model/example.dart';
+cat > packages/domain/lib/domain.dart << 'DART'
+export 'src/entity/example.dart';
 export 'src/repository/example_repository.dart';
+export 'src/failure/app_failure.dart';
 DART
 
-cat > packages/core/lib/src/model/example.dart << 'DART'
+cat > packages/domain/lib/src/entity/example.dart << 'DART'
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'example.freezed.dart';
@@ -409,8 +411,8 @@ abstract class Example with _$Example {
 }
 DART
 
-cat > packages/core/lib/src/repository/example_repository.dart << 'DART'
-import '../model/example.dart';
+cat > packages/domain/lib/src/repository/example_repository.dart << 'DART'
+import '../entity/example.dart';
 
 abstract class ExampleRepository {
   Future<Example> getById(String id);
@@ -418,20 +420,36 @@ abstract class ExampleRepository {
 }
 DART
 
-log "packages/core"
+cat > packages/domain/lib/src/failure/app_failure.dart << 'DART'
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+part 'app_failure.freezed.dart';
+
+@freezed
+sealed class AppFailure with _$AppFailure {
+  const factory AppFailure.server({String? message}) = ServerFailure;
+  const factory AppFailure.network({String? message}) = NetworkFailure;
+  const factory AppFailure.notFound({String? message}) = NotFoundFailure;
+  const factory AppFailure.unauthorized({String? message}) = UnauthorizedFailure;
+  const factory AppFailure.unknown({String? message}) = UnknownFailure;
+}
+DART
+
+log "packages/domain"
 else
-  info "Skipping (exists): ${DIM}packages/core${NC}"
+  info "Skipping (exists): ${DIM}packages/domain${NC}"
 fi
 
 # ══════════════════════════════════════
-# packages/network
+# packages/data  (DDD Data Layer)
+#   Repository impl, remote datasources, DTOs, Dio
 # ══════════════════════════════════════
-if [[ ! -d "packages/network" ]]; then
-mkdir -p packages/network/lib/src/{service,dto,interceptor}
+if [[ ! -d "packages/data" ]]; then
+mkdir -p packages/data/lib/src/{repository,datasource/remote/dto,network/interceptor}
 
-cat > packages/network/pubspec.yaml << YAML
-name: network
-description: Dio client, Retrofit services, and DTOs
+cat > packages/data/pubspec.yaml << YAML
+name: data
+description: "DDD Data Layer: repository implementations, remote datasources, DTOs"
 publish_to: none
 resolution: workspace
 
@@ -439,7 +457,7 @@ environment:
   sdk: ^$DART_MAJOR_MINOR.0
 
 dependencies:
-  core:
+  domain:
   dio: $V_DIO
   retrofit: $V_RETROFIT
   freezed_annotation: $V_FREEZED_ANNOTATION
@@ -452,17 +470,22 @@ dev_dependencies:
   json_serializable: $V_JSON_SERIALIZABLE
 YAML
 
-cat > packages/network/analysis_options.yaml << 'YAML'
+cat > packages/data/analysis_options.yaml << 'YAML'
 include: package:lint_rules/analysis_options.yaml
 YAML
 
-cat > packages/network/lib/network.dart << 'DART'
-export 'src/dio_client.dart';
-export 'src/service/example_service.dart';
-export 'src/dto/example_dto.dart';
+cat > packages/data/lib/data.dart << 'DART'
+// Network
+export 'src/network/dio_client.dart';
+
+// DataSources
+export 'src/datasource/remote/example_remote_datasource.dart';
+
+// Repositories
+export 'src/repository/example_repository_impl.dart';
 DART
 
-cat > packages/network/lib/src/dio_client.dart << DART
+cat > packages/data/lib/src/network/dio_client.dart << DART
 import 'package:dio/dio.dart';
 
 import 'interceptor/auth_interceptor.dart';
@@ -487,7 +510,7 @@ Dio createDio({String baseUrl = '$BASE_URL'}) {
 }
 DART
 
-cat > packages/network/lib/src/interceptor/auth_interceptor.dart << 'DART'
+cat > packages/data/lib/src/network/interceptor/auth_interceptor.dart << 'DART'
 import 'package:dio/dio.dart';
 
 class AuthInterceptor extends Interceptor {
@@ -500,7 +523,7 @@ class AuthInterceptor extends Interceptor {
 }
 DART
 
-cat > packages/network/lib/src/interceptor/error_interceptor.dart << 'DART'
+cat > packages/data/lib/src/network/interceptor/error_interceptor.dart << 'DART'
 import 'package:dio/dio.dart';
 
 class ErrorInterceptor extends Interceptor {
@@ -512,17 +535,18 @@ class ErrorInterceptor extends Interceptor {
 }
 DART
 
-cat > packages/network/lib/src/service/example_service.dart << 'DART'
+cat > packages/data/lib/src/datasource/remote/example_remote_datasource.dart << 'DART'
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
-import '../dto/example_dto.dart';
+import 'dto/example_dto.dart';
 
-part 'example_service.g.dart';
+part 'example_remote_datasource.g.dart';
 
 @RestApi()
-abstract class ExampleService {
-  factory ExampleService(Dio dio, {String? baseUrl}) = _ExampleService;
+abstract class ExampleRemoteDataSource {
+  factory ExampleRemoteDataSource(Dio dio, {String? baseUrl}) =
+      _ExampleRemoteDataSource;
 
   @GET('/examples/{id}')
   Future<ExampleDto> getById(@Path() String id);
@@ -532,9 +556,9 @@ abstract class ExampleService {
 }
 DART
 
-cat > packages/network/lib/src/dto/example_dto.dart << 'DART'
+cat > packages/data/lib/src/datasource/remote/dto/example_dto.dart << 'DART'
 import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:core/core.dart';
+import 'package:domain/domain.dart';
 
 part 'example_dto.freezed.dart';
 part 'example_dto.g.dart';
@@ -555,9 +579,33 @@ abstract class ExampleDto with _$ExampleDto {
 }
 DART
 
-log "packages/network"
+cat > packages/data/lib/src/repository/example_repository_impl.dart << 'DART'
+import 'package:domain/domain.dart';
+
+import '../datasource/remote/example_remote_datasource.dart';
+
+class ExampleRepositoryImpl implements ExampleRepository {
+  ExampleRepositoryImpl(this._remoteDataSource);
+
+  final ExampleRemoteDataSource _remoteDataSource;
+
+  @override
+  Future<Example> getById(String id) async {
+    final dto = await _remoteDataSource.getById(id);
+    return dto.toDomain();
+  }
+
+  @override
+  Future<List<Example>> getAll() async {
+    final dtos = await _remoteDataSource.getAll();
+    return dtos.map((e) => e.toDomain()).toList();
+  }
+}
+DART
+
+log "packages/data"
 else
-  info "Skipping (exists): ${DIM}packages/network${NC}"
+  info "Skipping (exists): ${DIM}packages/data${NC}"
 fi
 
 # ══════════════════════════════════════
@@ -725,18 +773,17 @@ fi
 # ══════════════════════════════════════
 for APP_NAME in "${APP_NAMES[@]}"; do
 
-# Skip monorepo overwrite if app already has monorepo structure
-if [[ "$UPDATE_MODE" == true && -f "apps/$APP_NAME/lib/router/app_router.dart" ]]; then
-  info "Skipping monorepo setup (exists): ${DIM}apps/$APP_NAME${NC}"
+# Skip monorepo overwrite if app already has DDD structure
+if [[ "$UPDATE_MODE" == true && -f "apps/$APP_NAME/lib/presentation/router/app_router.dart" ]]; then
+  info "Skipping DDD setup (exists): ${DIM}apps/$APP_NAME${NC}"
   continue
 fi
 
-info "Setting up monorepo structure for ${BOLD}$APP_NAME${NC}..."
+info "Setting up DDD structure for ${BOLD}$APP_NAME${NC}..."
 
-mkdir -p "apps/$APP_NAME/lib/ui/example" \
-         "apps/$APP_NAME/lib/data" \
-         "apps/$APP_NAME/lib/provider" \
-         "apps/$APP_NAME/lib/router"
+mkdir -p "apps/$APP_NAME/lib/di" \
+         "apps/$APP_NAME/lib/presentation/router" \
+         "apps/$APP_NAME/lib/presentation/example"
 
 cat > "apps/$APP_NAME/pubspec.yaml" << YAML
 name: $APP_NAME
@@ -752,9 +799,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  domain:
+  data:
   design_system:
-  core:
-  network:
   dio: $V_DIO
   flutter_riverpod: $V_FLUTTER_RIVERPOD
   riverpod_annotation: $V_RIVERPOD_ANNOTATION
@@ -776,7 +823,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:design_system/design_system.dart';
 
-import 'router/app_router.dart';
+import 'presentation/router/app_router.dart';
 
 void main() {
   runApp(const ProviderScope(child: MyApp()));
@@ -799,12 +846,12 @@ class MyApp extends ConsumerWidget {
 }
 DART
 
-cat > "apps/$APP_NAME/lib/router/app_router.dart" << 'DART'
+cat > "apps/$APP_NAME/lib/presentation/router/app_router.dart" << 'DART'
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import '../ui/example/example_screen.dart';
+import '../example/example_screen.dart';
 
 part 'app_router.g.dart';
 
@@ -822,13 +869,11 @@ GoRouter appRouter(Ref ref) {
 }
 DART
 
-cat > "apps/$APP_NAME/lib/provider/providers.dart" << 'DART'
-import 'package:core/core.dart';
+cat > "apps/$APP_NAME/lib/di/providers.dart" << 'DART'
+import 'package:data/data.dart';
 import 'package:dio/dio.dart';
-import 'package:network/network.dart';
+import 'package:domain/domain.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../data/example_repository_impl.dart';
 
 part 'providers.g.dart';
 
@@ -836,41 +881,19 @@ part 'providers.g.dart';
 Dio dio(Ref ref) => createDio();
 
 @riverpod
-ExampleService exampleService(Ref ref) => ExampleService(ref.watch(dioProvider));
+ExampleRemoteDataSource exampleRemoteDataSource(Ref ref) =>
+    ExampleRemoteDataSource(ref.watch(dioProvider));
 
 @riverpod
 ExampleRepository exampleRepository(Ref ref) =>
-    ExampleRepositoryImpl(ref.watch(exampleServiceProvider));
+    ExampleRepositoryImpl(ref.watch(exampleRemoteDataSourceProvider));
 DART
 
-cat > "apps/$APP_NAME/lib/data/example_repository_impl.dart" << 'DART'
-import 'package:core/core.dart';
-import 'package:network/network.dart';
-
-class ExampleRepositoryImpl implements ExampleRepository {
-  ExampleRepositoryImpl(this._service);
-
-  final ExampleService _service;
-
-  @override
-  Future<Example> getById(String id) async {
-    final dto = await _service.getById(id);
-    return dto.toDomain();
-  }
-
-  @override
-  Future<List<Example>> getAll() async {
-    final dtos = await _service.getAll();
-    return dtos.map((e) => e.toDomain()).toList();
-  }
-}
-DART
-
-cat > "apps/$APP_NAME/lib/ui/example/example_notifier.dart" << 'DART'
-import 'package:core/core.dart';
+cat > "apps/$APP_NAME/lib/presentation/example/example_notifier.dart" << 'DART'
+import 'package:domain/domain.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import '../../provider/providers.dart';
+import '../../di/providers.dart';
 
 part 'example_notifier.g.dart';
 
@@ -884,7 +907,7 @@ class ExampleNotifier extends _$ExampleNotifier {
 }
 DART
 
-cat > "apps/$APP_NAME/lib/ui/example/example_screen.dart" << 'DART'
+cat > "apps/$APP_NAME/lib/presentation/example/example_screen.dart" << 'DART'
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -909,7 +932,7 @@ class ExampleScreen extends ConsumerWidget {
 }
 DART
 
-log "apps/$APP_NAME (monorepo setup)"
+log "apps/$APP_NAME (DDD setup)"
 
 done
 
