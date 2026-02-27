@@ -272,9 +272,7 @@ build/
 .idea/
 
 # Generated
-*.g.dart
-*.freezed.dart
-*.config.dart
+**/generated/
 
 # OS
 .DS_Store
@@ -399,6 +397,21 @@ cat > packages/domain/analysis_options.yaml << 'YAML'
 include: package:lint_rules/analysis_options.yaml
 YAML
 
+cat > packages/domain/build.yaml << 'YAML'
+targets:
+  $default:
+    builders:
+      source_gen|combining_builder:
+        options:
+          build_extensions:
+            "^lib/{{dir}}/{{file}}.dart": "lib/{{dir}}/generated/{{file}}.g.dart"
+      freezed:
+        options:
+          build_extensions:
+            "^lib/{{dir}}/{{file}}.dart": "lib/{{dir}}/generated/{{file}}.freezed.dart"
+YAML
+log "packages/domain/build.yaml"
+
 cat > packages/domain/lib/domain.dart << 'DART'
 export 'src/entity/example.dart';
 export 'src/repository/example_repository.dart';
@@ -408,7 +421,7 @@ DART
 cat > packages/domain/lib/src/entity/example.dart << 'DART'
 import 'package:freezed_annotation/freezed_annotation.dart';
 
-part 'example.freezed.dart';
+part 'generated/example.freezed.dart';
 
 @freezed
 abstract class Example with _$Example {
@@ -431,7 +444,7 @@ DART
 cat > packages/domain/lib/src/failure/app_failure.dart << 'DART'
 import 'package:freezed_annotation/freezed_annotation.dart';
 
-part 'app_failure.freezed.dart';
+part 'generated/app_failure.freezed.dart';
 
 @freezed
 sealed class AppFailure with _$AppFailure {
@@ -485,6 +498,25 @@ cat > packages/data/analysis_options.yaml << 'YAML'
 include: package:lint_rules/analysis_options.yaml
 YAML
 
+cat > packages/data/build.yaml << 'YAML'
+targets:
+  $default:
+    builders:
+      source_gen|combining_builder:
+        options:
+          build_extensions:
+            "^lib/{{dir}}/{{file}}.dart": "lib/{{dir}}/generated/{{file}}.g.dart"
+      freezed:
+        options:
+          build_extensions:
+            "^lib/{{dir}}/{{file}}.dart": "lib/{{dir}}/generated/{{file}}.freezed.dart"
+      injectable_generator:injectable_builder:
+        options:
+          auto_register: true
+          file_name_pattern: "_repository_impl$|_usecase$"
+YAML
+log "packages/data/build.yaml"
+
 cat > packages/data/lib/data.dart << 'DART'
 // DI
 export 'src/di/data_injection.dart';
@@ -503,7 +535,7 @@ cat > packages/data/lib/src/di/data_injection.dart << 'DART'
 import 'package:get_it/get_it.dart';
 import 'package:injectable/injectable.dart';
 
-import 'data_injection.config.dart';
+import 'generated/data_injection.config.dart';
 
 @InjectableInit.microPackage()
 void initDataPackage(GetIt getIt) => getIt.init();
@@ -583,7 +615,7 @@ import 'package:retrofit/retrofit.dart';
 
 import 'dto/example_dto.dart';
 
-part 'example_remote_datasource.g.dart';
+part 'generated/example_remote_datasource.g.dart';
 
 @RestApi()
 abstract class ExampleRemoteDataSource {
@@ -602,8 +634,8 @@ cat > packages/data/lib/src/datasource/remote/dto/example_dto.dart << 'DART'
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:domain/domain.dart';
 
-part 'example_dto.freezed.dart';
-part 'example_dto.g.dart';
+part 'generated/example_dto.freezed.dart';
+part 'generated/example_dto.g.dart';
 
 @freezed
 abstract class ExampleDto with _$ExampleDto {
@@ -623,11 +655,10 @@ DART
 
 cat > packages/data/lib/src/repository/example_repository_impl.dart << 'DART'
 import 'package:domain/domain.dart';
-import 'package:injectable/injectable.dart';
 
 import '../datasource/remote/example_remote_datasource.dart';
 
-@Injectable(as: ExampleRepository)
+/// Auto-registered by injectable (file name pattern: _repository_impl$)
 class ExampleRepositoryImpl implements ExampleRepository {
   ExampleRepositoryImpl(this._remoteDataSource);
 
@@ -864,6 +895,21 @@ cat > "apps/$APP_NAME/analysis_options.yaml" << 'YAML'
 include: package:lint_rules/analysis_options.yaml
 YAML
 
+cat > "apps/$APP_NAME/build.yaml" << 'YAML'
+targets:
+  $default:
+    builders:
+      source_gen|combining_builder:
+        options:
+          build_extensions:
+            "^lib/{{dir}}/{{file}}.dart": "lib/{{dir}}/generated/{{file}}.g.dart"
+      freezed:
+        options:
+          build_extensions:
+            "^lib/{{dir}}/{{file}}.dart": "lib/{{dir}}/generated/{{file}}.freezed.dart"
+YAML
+log "apps/$APP_NAME/build.yaml"
+
 cat > "apps/$APP_NAME/lib/main.dart" << 'DART'
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -901,7 +947,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../example/example_screen.dart';
 
-part 'app_router.g.dart';
+part 'generated/app_router.g.dart';
 
 @riverpod
 GoRouter appRouter(Ref ref) {
@@ -922,7 +968,7 @@ import 'package:data/data.dart';
 import 'package:get_it/get_it.dart';
 import 'package:injectable/injectable.dart';
 
-import 'injection.config.dart';
+import 'generated/injection.config.dart';
 
 final getIt = GetIt.instance;
 
@@ -938,7 +984,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import 'injection.dart';
 
-part 'providers.g.dart';
+part 'generated/providers.g.dart';
 
 /// GetIt → Riverpod bridge (UI layer에서 사용)
 @riverpod
@@ -951,7 +997,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../di/providers.dart';
 
-part 'example_notifier.g.dart';
+part 'generated/example_notifier.g.dart';
 
 @riverpod
 class ExampleNotifier extends _$ExampleNotifier {
