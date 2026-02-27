@@ -252,6 +252,11 @@ melos:
     format:
       exec: dart format .
       description: Format all packages
+    l10n:
+      exec: flutter gen-l10n
+      description: Generate localization files
+      packageFilters:
+        fileExists: l10n.yaml
     clean:
       exec: flutter clean
       description: Clean all packages
@@ -853,7 +858,8 @@ info "Setting up DDD structure for ${BOLD}$APP_NAME${NC}..."
 
 mkdir -p "apps/$APP_NAME/lib/di" \
          "apps/$APP_NAME/lib/presentation/router" \
-         "apps/$APP_NAME/lib/presentation/example"
+         "apps/$APP_NAME/lib/presentation/example" \
+         "apps/$APP_NAME/lib/l10n"
 
 cat > "apps/$APP_NAME/pubspec.yaml" << YAML
 name: $APP_NAME
@@ -869,6 +875,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: any
   domain:
   data:
   design_system:
@@ -905,12 +914,46 @@ targets:
 YAML
 log "apps/$APP_NAME/build.yaml"
 
+cat > "apps/$APP_NAME/l10n.yaml" << YAML
+arb-dir: lib/l10n
+template-arb-file: app_ko.arb
+output-localization-file: app_localizations.dart
+output-dir: lib/l10n/generated
+synthetic-package: false
+nullable-getter: false
+YAML
+log "apps/$APP_NAME/l10n.yaml"
+
+cat > "apps/$APP_NAME/lib/l10n/app_ko.arb" << 'ARB'
+{
+  "@@locale": "ko",
+  "appTitle": "앱",
+  "@appTitle": {
+    "description": "앱 타이틀"
+  },
+  "helloMessage": "디자인 시스템에서 인사드립니다",
+  "@helloMessage": {
+    "description": "예제 화면 버튼 텍스트"
+  }
+}
+ARB
+
+cat > "apps/$APP_NAME/lib/l10n/app_en.arb" << 'ARB'
+{
+  "@@locale": "en",
+  "appTitle": "App",
+  "helloMessage": "Hello from Design System"
+}
+ARB
+log "apps/$APP_NAME l10n (ko, en)"
+
 cat > "apps/$APP_NAME/lib/main.dart" << 'DART'
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:design_system/design_system.dart';
 
 import 'di/injection.dart';
+import 'l10n/generated/app_localizations.dart';
 import 'presentation/router/app_router.dart';
 
 void main() {
@@ -929,6 +972,9 @@ class MyApp extends ConsumerWidget {
       title: 'App',
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
+      locale: const Locale('ko'),
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
       routerConfig: router,
     );
   }
@@ -1009,16 +1055,20 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../l10n/generated/app_localizations.dart';
+
 class ExampleScreen extends ConsumerWidget {
   const ExampleScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Example')),
+      appBar: AppBar(title: Text(l10n.appTitle)),
       body: Center(
         child: AppButton(
-          label: 'Hello from Design System',
+          label: l10n.helloMessage,
           onPressed: () {
             // TODO: implement
           },

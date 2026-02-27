@@ -69,6 +69,10 @@ my_project/
 │   │       │   ├── generated/injection.config.dart
 │   │       │   ├── providers.dart              # GetIt → Riverpod bridge
 │   │       │   └── generated/providers.g.dart
+│   │       ├── l10n/
+│   │       │   ├── app_ko.arb                  # Korean (template)
+│   │       │   ├── app_en.arb                  # English
+│   │       │   └── generated/app_localizations.dart
 │   │       └── presentation/
 │   │           ├── router/
 │   │           │   ├── app_router.dart          # GoRouter (@riverpod)
@@ -356,6 +360,59 @@ melos run gen
 
 ---
 
+## Localization (i18n)
+
+Flutter 공식 `flutter gen-l10n` 방식. 앱별로 ARB 파일을 관리합니다.
+
+### 파일 구조
+
+```
+apps/app/
+├── l10n.yaml                          # gen-l10n 설정
+└── lib/l10n/
+    ├── app_ko.arb                     # 한국어 (template)
+    ├── app_en.arb                     # 영어
+    └── generated/                     # 자동 생성 (gitignore)
+        └── app_localizations.dart
+```
+
+### ARB 파일 형식
+
+```json
+{
+  "@@locale": "ko",
+  "greeting": "안녕하세요, {name}님",
+  "@greeting": {
+    "description": "인사 메시지",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  }
+}
+```
+
+### 사용법
+
+```dart
+// Widget에서
+final l10n = AppLocalizations.of(context);
+Text(l10n.greeting(name: '정욱'));
+```
+
+### 새 언어 추가
+
+1. `lib/l10n/app_ja.arb` 파일 생성 (일본어 예시)
+2. `melos run l10n` 실행
+3. 끝! `supportedLocales`에 자동 추가됨
+
+### 생성 명령
+
+```bash
+melos run l10n
+```
+
+---
+
 ## File Naming Conventions
 
 - **`*_repository_impl.dart`** — Auto-registered by Injectable (implements abstract Repository)
@@ -371,6 +428,7 @@ melos run gen
 
 - `melos run gen` — Run build_runner in all packages (freezed + retrofit + injectable + riverpod)
 - `melos run gen:watch` — Watch mode for build_runner
+- `melos run l10n` — Generate localization files from ARB
 - `melos run test` — Run tests in all packages
 - `melos run analyze` — Analyze all packages
 - `melos run format` — Format all packages
