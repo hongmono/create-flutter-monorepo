@@ -176,6 +176,11 @@ log "get_it: ${CYAN}$V_GET_IT${NC}"
 log "injectable: ${CYAN}$V_INJECTABLE${NC}"
 log "injectable_generator: ${CYAN}$V_INJECTABLE_GENERATOR${NC}"
 
+V_SLANG_FLUTTER=$(get_version slang_flutter)
+V_SLANG_BUILD_RUNNER=$(get_version slang_build_runner)
+log "slang_flutter: ${CYAN}$V_SLANG_FLUTTER${NC}"
+log "slang_build_runner: ${CYAN}$V_SLANG_BUILD_RUNNER${NC}"
+
 V_FLUTTER_LINTS=$(get_version flutter_lints)
 log "flutter_lints: ${CYAN}$V_FLUTTER_LINTS${NC}"
 
@@ -252,11 +257,6 @@ melos:
     format:
       exec: dart format .
       description: Format all packages
-    l10n:
-      exec: flutter gen-l10n
-      description: Generate localization files
-      packageFilters:
-        fileExists: l10n.yaml
     clean:
       exec: flutter clean
       description: Clean all packages
@@ -859,7 +859,7 @@ info "Setting up DDD structure for ${BOLD}$APP_NAME${NC}..."
 mkdir -p "apps/$APP_NAME/lib/di" \
          "apps/$APP_NAME/lib/presentation/router" \
          "apps/$APP_NAME/lib/presentation/example" \
-         "apps/$APP_NAME/lib/l10n"
+         "apps/$APP_NAME/lib/i18n"
 
 cat > "apps/$APP_NAME/pubspec.yaml" << YAML
 name: $APP_NAME
@@ -877,7 +877,7 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
-  intl: any
+  slang_flutter: $V_SLANG_FLUTTER
   domain:
   data:
   design_system:
@@ -893,6 +893,7 @@ dev_dependencies:
   build_runner: $V_BUILD_RUNNER
   injectable_generator: $V_INJECTABLE_GENERATOR
   riverpod_generator: $V_RIVERPOD_GENERATOR
+  slang_build_runner: $V_SLANG_BUILD_RUNNER
 YAML
 
 cat > "apps/$APP_NAME/analysis_options.yaml" << 'YAML'
@@ -911,54 +912,46 @@ targets:
         options:
           build_extensions:
             "^lib/{{dir}}/{{file}}.dart": "lib/{{dir}}/generated/{{file}}.freezed.dart"
+      slang_build_runner:
+        options:
+          base_locale: ko
+          input_directory: lib/i18n
+          output_directory: lib/i18n/generated
+          output_file_name: strings.g.dart
 YAML
 log "apps/$APP_NAME/build.yaml"
 
-cat > "apps/$APP_NAME/l10n.yaml" << YAML
-arb-dir: lib/l10n
-template-arb-file: app_ko.arb
-output-localization-file: app_localizations.dart
-output-dir: lib/l10n/generated
-synthetic-package: false
-nullable-getter: false
+cat > "apps/$APP_NAME/lib/i18n/strings_ko.i18n.yaml" << 'YAML'
+appTitle: 앱
+helloMessage: 디자인 시스템에서 인사드립니다
 YAML
-log "apps/$APP_NAME/l10n.yaml"
 
-cat > "apps/$APP_NAME/lib/l10n/app_ko.arb" << 'ARB'
-{
-  "@@locale": "ko",
-  "appTitle": "앱",
-  "@appTitle": {
-    "description": "앱 타이틀"
-  },
-  "helloMessage": "디자인 시스템에서 인사드립니다",
-  "@helloMessage": {
-    "description": "예제 화면 버튼 텍스트"
-  }
-}
-ARB
-
-cat > "apps/$APP_NAME/lib/l10n/app_en.arb" << 'ARB'
-{
-  "@@locale": "en",
-  "appTitle": "App",
-  "helloMessage": "Hello from Design System"
-}
-ARB
-log "apps/$APP_NAME l10n (ko, en)"
+cat > "apps/$APP_NAME/lib/i18n/strings_en.i18n.yaml" << 'YAML'
+appTitle: App
+helloMessage: Hello from Design System
+YAML
+log "apps/$APP_NAME i18n (ko, en)"
 
 cat > "apps/$APP_NAME/lib/main.dart" << 'DART'
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:design_system/design_system.dart';
+import 'package:slang_flutter/slang_flutter.dart';
 
 import 'di/injection.dart';
-import 'l10n/generated/app_localizations.dart';
+import 'i18n/generated/strings.g.dart';
 import 'presentation/router/app_router.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  LocaleSettings.useDeviceLocale();
   configureDependencies();
-  runApp(const ProviderScope(child: MyApp()));
+  runApp(
+    TranslationProvider(
+      child: const ProviderScope(child: MyApp()),
+    ),
+  );
 }
 
 class MyApp extends ConsumerWidget {
@@ -969,12 +962,12 @@ class MyApp extends ConsumerWidget {
     final router = ref.watch(appRouterProvider);
 
     return MaterialApp.router(
-      title: 'App',
+      title: t.appTitle,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      locale: const Locale('ko'),
-      supportedLocales: AppLocalizations.supportedLocales,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      locale: TranslationProvider.of(context).flutterLocale,
+      supportedLocales: AppLocaleUtils.supportedLocales,
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       routerConfig: router,
     );
   }
@@ -1055,20 +1048,18 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../l10n/generated/app_localizations.dart';
+import '../../i18n/generated/strings.g.dart';
 
 class ExampleScreen extends ConsumerWidget {
   const ExampleScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.appTitle)),
+      appBar: AppBar(title: Text(t.appTitle)),
       body: Center(
         child: AppButton(
-          label: l10n.helloMessage,
+          label: t.helloMessage,
           onPressed: () {
             // TODO: implement
           },

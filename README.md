@@ -69,10 +69,10 @@ my_project/
 │   │       │   ├── generated/injection.config.dart
 │   │       │   ├── providers.dart              # GetIt → Riverpod bridge
 │   │       │   └── generated/providers.g.dart
-│   │       ├── l10n/
-│   │       │   ├── app_ko.arb                  # Korean (template)
-│   │       │   ├── app_en.arb                  # English
-│   │       │   └── generated/app_localizations.dart
+│   │       ├── i18n/
+│   │       │   ├── strings_ko.i18n.yaml         # Korean (base)
+│   │       │   ├── strings_en.i18n.yaml         # English
+│   │       │   └── generated/strings.g.dart
 │   │       └── presentation/
 │   │           ├── router/
 │   │           │   ├── app_router.dart          # GoRouter (@riverpod)
@@ -360,56 +360,65 @@ melos run gen
 
 ---
 
-## Localization (i18n)
+## Localization (i18n) — slang
 
-Flutter 공식 `flutter gen-l10n` 방식. 앱별로 ARB 파일을 관리합니다.
+[slang](https://pub.dev/packages/slang) 기반 타입세이프 다국어 지원. YAML로 관리하고 build_runner로 생성.
 
 ### 파일 구조
 
 ```
 apps/app/
-├── l10n.yaml                          # gen-l10n 설정
-└── lib/l10n/
-    ├── app_ko.arb                     # 한국어 (template)
-    ├── app_en.arb                     # 영어
-    └── generated/                     # 자동 생성 (gitignore)
-        └── app_localizations.dart
+└── lib/i18n/
+    ├── strings_ko.i18n.yaml          # 한국어 (base locale)
+    ├── strings_en.i18n.yaml          # 영어
+    └── generated/                    # 자동 생성 (gitignore)
+        └── strings.g.dart
 ```
 
-### ARB 파일 형식
+### YAML 파일 형식
 
-```json
-{
-  "@@locale": "ko",
-  "greeting": "안녕하세요, {name}님",
-  "@greeting": {
-    "description": "인사 메시지",
-    "placeholders": {
-      "name": { "type": "String" }
-    }
-  }
-}
+```yaml
+# strings_ko.i18n.yaml
+appTitle: 앱
+greeting: 안녕하세요, {name}님
+items(param=count):
+  one: ${count}개 아이템
+  other: ${count}개 아이템들
+common:
+  button:
+    save: 저장
+    cancel: 취소
 ```
 
 ### 사용법
 
 ```dart
-// Widget에서
-final l10n = AppLocalizations.of(context);
-Text(l10n.greeting(name: '정욱'));
+// 어디서든 글로벌 `t` 사용
+Text(t.appTitle);
+Text(t.greeting(name: '정욱'));
+Text(t.common.button.save);
+
+// 복수형 자동 처리
+Text(t.items(count: 3));
 ```
 
 ### 새 언어 추가
 
-1. `lib/l10n/app_ja.arb` 파일 생성 (일본어 예시)
-2. `melos run l10n` 실행
-3. 끝! `supportedLocales`에 자동 추가됨
+1. `lib/i18n/strings_ja.i18n.yaml` 파일 생성
+2. `melos run gen` 실행 (build_runner가 자동 생성)
+3. 끝!
 
-### 생성 명령
+### 설정 (build.yaml)
 
-```bash
-melos run l10n
+```yaml
+slang_build_runner:
+  options:
+    base_locale: ko
+    input_directory: lib/i18n
+    output_directory: lib/i18n/generated
 ```
+
+`melos run gen`으로 다른 코드젠과 함께 한번에 생성됩니다.
 
 ---
 
@@ -426,9 +435,8 @@ melos run l10n
 
 ## Melos Scripts
 
-- `melos run gen` — Run build_runner in all packages (freezed + retrofit + injectable + riverpod)
+- `melos run gen` — Run build_runner in all packages (freezed + retrofit + injectable + riverpod + slang)
 - `melos run gen:watch` — Watch mode for build_runner
-- `melos run l10n` — Generate localization files from ARB
 - `melos run test` — Run tests in all packages
 - `melos run analyze` — Analyze all packages
 - `melos run format` — Format all packages
@@ -443,7 +451,8 @@ melos run l10n
 - **State Management**: Riverpod 3.0 (UI state only)
 - **Routing**: GoRouter
 - **HTTP**: Dio + Retrofit
-- **Code Generation**: Freezed, json_serializable, injectable_generator, riverpod_generator
+- **i18n**: slang (YAML, type-safe, build_runner 통합)
+- **Code Generation**: Freezed, json_serializable, injectable_generator, riverpod_generator, slang_build_runner
 - **Design System**: Shared design tokens + theme + widgets
 - **Monorepo**: Melos v7 + Pub Workspaces
 
