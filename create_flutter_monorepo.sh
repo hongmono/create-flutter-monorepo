@@ -51,6 +51,7 @@ fi
 
 APP_NAMES_INPUT=$(ask "App names, comma-separated" "app")
 ORG=$(ask "Organization (reverse domain)" "com.example")
+PLATFORMS_INPUT=$(ask "Platforms, comma-separated (ios,android,web,macos,linux,windows)" "ios,android,web")
 BASE_URL=$(ask "API base URL" "https://api.example.com")
 
 # Parse app names into array
@@ -140,7 +141,7 @@ mkdir -p apps
 
 for APP_NAME in "${APP_NAMES[@]}"; do
   info "Running flutter create for ${BOLD}$APP_NAME${NC}..."
-  flutter create --org "$ORG" --project-name "$APP_NAME" "apps/$APP_NAME" --empty >/dev/null 2>&1
+  flutter create --org "$ORG" --project-name "$APP_NAME" --platforms "$PLATFORMS_INPUT" "apps/$APP_NAME" --empty >/dev/null 2>&1
   log "flutter create apps/$APP_NAME"
 done
 
