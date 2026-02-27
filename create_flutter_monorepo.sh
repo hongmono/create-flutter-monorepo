@@ -45,8 +45,10 @@ if [[ ! "$PROJECT_NAME" =~ ^[a-z][a-z0-9_]*$ ]]; then
   err "Invalid project name '$PROJECT_NAME'. Use lowercase + underscores (e.g. my_app)"
 fi
 
+UPDATE_MODE=false
 if [[ -d "$PROJECT_NAME" ]]; then
-  err "Directory '$PROJECT_NAME' already exists."
+  UPDATE_MODE=true
+  warn "Directory '$PROJECT_NAME' already exists — running in ${BOLD}update mode${NC} (only missing components will be added)"
 fi
 
 APP_NAMES_INPUT=$(ask "App names, comma-separated" "app")
@@ -64,6 +66,16 @@ for name in "${APP_NAMES_RAW[@]}"; do
   fi
   APP_NAMES+=("$name")
 done
+
+# ── Helper: write file only if it doesn't exist (update mode) ──
+write_if_missing() {
+  local filepath="$1"
+  if [[ "$UPDATE_MODE" == true && -f "$filepath" ]]; then
+    info "Skipping (exists): ${DIM}$filepath${NC}"
+    return 1
+  fi
+  return 0
+}
 
 echo ""
 
@@ -145,9 +157,13 @@ cd "$PROJECT_NAME"
 mkdir -p apps
 
 for APP_NAME in "${APP_NAMES[@]}"; do
-  info "Running flutter create for ${BOLD}$APP_NAME${NC}..."
-  flutter create --org "$ORG" --project-name "$APP_NAME" --platforms "$PLATFORMS_INPUT" "apps/$APP_NAME" --empty >/dev/null 2>&1
-  log "flutter create apps/$APP_NAME"
+  if [[ -d "apps/$APP_NAME" && "$UPDATE_MODE" == true ]]; then
+    info "Skipping flutter create (exists): ${DIM}apps/$APP_NAME${NC}"
+  else
+    info "Running flutter create for ${BOLD}$APP_NAME${NC}..."
+    flutter create --org "$ORG" --project-name "$APP_NAME" --platforms "$PLATFORMS_INPUT" "apps/$APP_NAME" --empty >/dev/null 2>&1
+    log "flutter create apps/$APP_NAME"
+  fi
 done
 
 # ── Build workspace entries ──
@@ -158,6 +174,7 @@ for app_name in "${APP_NAMES[@]}"; do
 done
 
 # ── Root pubspec.yaml ──
+if write_if_missing pubspec.yaml; then
 cat > pubspec.yaml << YAML
 name: $PROJECT_NAME
 publish_to: none
@@ -199,8 +216,10 @@ melos:
       description: Clean all packages
 YAML
 log "Root pubspec.yaml"
+fi
 
 # ── .gitignore ──
+if write_if_missing .gitignore; then
 cat > .gitignore << 'GITIGNORE'
 # Dart/Flutter
 .dart_tool/
@@ -220,8 +239,10 @@ build/
 Thumbs.db
 GITIGNORE
 log ".gitignore"
+fi
 
 # ── README ──
+if write_if_missing README.md; then
 cat > README.md << MD
 # $PROJECT_NAME
 
@@ -246,10 +267,12 @@ melos run gen
 | \`melos run format\` | Format all packages |
 MD
 log "README.md"
+fi
 
 # ══════════════════════════════════════
 # packages/lint_rules
 # ══════════════════════════════════════
+if [[ ! -d "packages/lint_rules" ]]; then
 mkdir -p packages/lint_rules/lib
 
 cat > packages/lint_rules/pubspec.yaml << YAML
@@ -283,10 +306,14 @@ cat > packages/lint_rules/lib/lint_rules.dart << 'DART'
 // This package provides shared analysis_options only.
 DART
 log "packages/lint_rules"
+else
+  info "Skipping (exists): ${DIM}packages/lint_rules${NC}"
+fi
 
 # ══════════════════════════════════════
 # packages/core
 # ══════════════════════════════════════
+if [[ ! -d "packages/core" ]]; then
 mkdir -p packages/core/lib/src/{model,repository}
 
 cat > packages/core/pubspec.yaml << YAML
@@ -341,10 +368,14 @@ abstract class ExampleRepository {
 DART
 
 log "packages/core"
+else
+  info "Skipping (exists): ${DIM}packages/core${NC}"
+fi
 
 # ══════════════════════════════════════
 # packages/network
 # ══════════════════════════════════════
+if [[ ! -d "packages/network" ]]; then
 mkdir -p packages/network/lib/src/{service,dto,interceptor}
 
 cat > packages/network/pubspec.yaml << YAML
@@ -474,10 +505,14 @@ abstract class ExampleDto with _$ExampleDto {
 DART
 
 log "packages/network"
+else
+  info "Skipping (exists): ${DIM}packages/network${NC}"
+fi
 
 # ══════════════════════════════════════
 # packages/design_system
 # ══════════════════════════════════════
+if [[ ! -d "packages/design_system" ]]; then
 mkdir -p packages/design_system/lib/src/{tokens,theme,widgets}
 
 cat > packages/design_system/pubspec.yaml << YAML
@@ -632,10 +667,14 @@ class AppButton extends StatelessWidget {
 DART
 
 log "packages/design_system"
+else
+  info "Skipping (exists): ${DIM}packages/design_system${NC}"
+fi
 
 # ══════════════════════════════════════
 # apps/widgetbook
 # ══════════════════════════════════════
+if [[ ! -d "apps/widgetbook" ]]; then
 mkdir -p apps/widgetbook/lib/src
 
 cat > apps/widgetbook/pubspec.yaml << YAML
@@ -727,11 +766,20 @@ Widget buildAppButtonText(BuildContext context) {
 DART
 
 log "apps/widgetbook"
+else
+  info "Skipping (exists): ${DIM}apps/widgetbook${NC}"
+fi
 
 # ══════════════════════════════════════
 # Overwrite apps with monorepo structure
 # ══════════════════════════════════════
 for APP_NAME in "${APP_NAMES[@]}"; do
+
+# Skip monorepo overwrite if app already has monorepo structure
+if [[ "$UPDATE_MODE" == true && -f "apps/$APP_NAME/lib/router/app_router.dart" ]]; then
+  info "Skipping monorepo setup (exists): ${DIM}apps/$APP_NAME${NC}"
+  continue
+fi
 
 info "Setting up monorepo structure for ${BOLD}$APP_NAME${NC}..."
 
@@ -910,10 +958,14 @@ done
 # ══════════════════════════════════════
 # Git init
 # ══════════════════════════════════════
-git init -q
-git add .
-git commit -q -m "chore: scaffold monorepo"
-log "git initialized with initial commit"
+if [[ -d ".git" ]]; then
+  info "Git repo already exists — skipping git init"
+else
+  git init -q
+  git add .
+  git commit -q -m "chore: scaffold monorepo"
+  log "git initialized with initial commit"
+fi
 
 # ══════════════════════════════════════
 # Done
@@ -922,7 +974,11 @@ APPS_LIST=$(printf ", %s" "${APP_NAMES[@]}")
 APPS_LIST=${APPS_LIST:2}
 
 echo -e "\n${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BOLD}${GREEN}✅ Monorepo created: ${CYAN}$PROJECT_NAME${NC}"
+if [[ "$UPDATE_MODE" == true ]]; then
+  echo -e "${BOLD}${GREEN}✅ Monorepo updated: ${CYAN}$PROJECT_NAME${NC}"
+else
+  echo -e "${BOLD}${GREEN}✅ Monorepo created: ${CYAN}$PROJECT_NAME${NC}"
+fi
 echo -e "   Apps: ${CYAN}$APPS_LIST${NC}"
 
 echo -e "\nNext steps:\n"
