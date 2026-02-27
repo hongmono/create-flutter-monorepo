@@ -4,8 +4,8 @@ set -euo pipefail
 # ╔═══════════════════════════════════════════════════════════════╗
 # ║  Flutter Melos v7 Monorepo Scaffolder                        ║
 # ║  Usage:                                                       ║
-# ║    bash create_flutter_monorepo.sh my_project                 ║
-# ║    curl -sL <raw-url> | bash -s -- my_project                ║
+# ║    bash create_flutter_monorepo.sh                            ║
+# ║    curl -sL <raw-url> | bash                                  ║
 # ╚═══════════════════════════════════════════════════════════════╝
 
 # ── Colors ──
@@ -23,27 +23,35 @@ info() { echo -e "${CYAN}→${NC} $1"; }
 warn() { echo -e "${YELLOW}⚠${NC} $1"; }
 err()  { echo -e "${RED}✗${NC} $1" >&2; exit 1; }
 
-# ── Args ──
-PROJECT_NAME="${1:-}"
-if [[ -z "$PROJECT_NAME" ]]; then
-  echo -e "\n${BOLD}${MAGENTA}Flutter Melos v7 Monorepo Scaffolder${NC}\n"
-  echo -e "Usage:"
-  echo -e "  ${CYAN}bash create_flutter_monorepo.sh ${YELLOW}<project_name>${NC}"
-  echo -e "  ${CYAN}curl -sL <raw-url> | bash -s -- ${YELLOW}<project_name>${NC}\n"
-  exit 1
-fi
+# ── Interactive prompt (works with curl | bash via /dev/tty) ──
+ask() {
+  local prompt="$1" default="$2" value
+  if [[ -n "$default" ]]; then
+    echo -en "${CYAN}→${NC} ${prompt} ${DIM}(${default})${NC}: " >/dev/tty
+  else
+    echo -en "${CYAN}→${NC} ${prompt}: " >/dev/tty
+  fi
+  read -r value </dev/tty
+  echo "${value:-$default}"
+}
 
-# Validate project name (Dart package naming rules)
+echo -e "\n${BOLD}${MAGENTA}🚀 Flutter Melos v7 Monorepo Scaffolder${NC}"
+echo -e "${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
+
+# ── Collect project info ──
+PROJECT_NAME=$(ask "Project name (lowercase, underscores)" "my_app")
+
 if [[ ! "$PROJECT_NAME" =~ ^[a-z][a-z0-9_]*$ ]]; then
-  err "Invalid project name '$PROJECT_NAME'. Use lowercase + underscores (e.g. my_project)"
+  err "Invalid project name '$PROJECT_NAME'. Use lowercase + underscores (e.g. my_app)"
 fi
 
 if [[ -d "$PROJECT_NAME" ]]; then
   err "Directory '$PROJECT_NAME' already exists."
 fi
 
-echo -e "\n${BOLD}${MAGENTA}🚀 Flutter Melos v7 Monorepo Scaffolder${NC}"
-echo -e "${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
+BASE_URL=$(ask "API base URL" "https://api.example.com")
+
+echo ""
 
 # ── Check prerequisites ──
 command -v dart    >/dev/null 2>&1 || err "dart SDK not found. Install Flutter/Dart first."
@@ -347,7 +355,7 @@ export 'src/service/example_service.dart';
 export 'src/dto/example_dto.dart';
 DART
 
-cat > packages/network/lib/src/dio_client.dart << 'DART'
+cat > packages/network/lib/src/dio_client.dart << DART
 import 'package:dio/dio.dart';
 
 import 'interceptor/auth_interceptor.dart';
@@ -355,8 +363,7 @@ import 'interceptor/error_interceptor.dart';
 
 final dio = Dio(
   BaseOptions(
-    // TODO: Replace with your API base URL
-    baseUrl: 'https://api.example.com',
+    baseUrl: '$BASE_URL',
     connectTimeout: const Duration(seconds: 5),
     receiveTimeout: const Duration(seconds: 10),
     headers: {
