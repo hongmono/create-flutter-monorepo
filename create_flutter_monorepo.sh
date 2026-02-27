@@ -317,7 +317,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'example.freezed.dart';
 
 @freezed
-class Example with _$Example {
+abstract class Example with _$Example {
   const factory Example({
     required String id,
     required String name,
@@ -452,7 +452,7 @@ part 'example_dto.freezed.dart';
 part 'example_dto.g.dart';
 
 @freezed
-class ExampleDto with _$ExampleDto {
+abstract class ExampleDto with _$ExampleDto {
   const ExampleDto._();
 
   const factory ExampleDto({
