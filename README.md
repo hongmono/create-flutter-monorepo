@@ -1,8 +1,23 @@
 # create-flutter-monorepo
 
-Flutter Melos v7 monorepo scaffolder with Riverpod + Retrofit + Dio.
+Flutter Melos v7 monorepo scaffolder with Riverpod 3.0 + Retrofit + Dio + Freezed.
+
+## Prerequisites
+
+- Flutter SDK (stable)
+- Dart SDK >= 3.x
+- `git`, `curl`
 
 ## Usage
+
+**Option 1**: Download and run locally (recommended)
+
+```bash
+curl -sLO https://raw.githubusercontent.com/hongmono/create-flutter-monorepo/main/create_flutter_monorepo.sh
+bash create_flutter_monorepo.sh
+```
+
+**Option 2**: Pipe directly (review the script first!)
 
 ```bash
 curl -sL https://raw.githubusercontent.com/hongmono/create-flutter-monorepo/main/create_flutter_monorepo.sh | bash
@@ -10,13 +25,11 @@ curl -sL https://raw.githubusercontent.com/hongmono/create-flutter-monorepo/main
 
 ## What it asks
 
-| Prompt | Default | Example |
-|--------|---------|---------|
-| Project name | `my_app` | `my_project` |
-| App names | `app` | `client, admin` |
-| Organization | `com.example` | `com.hongmono` |
-| Platforms | `ios,android,web` | `ios,android` |
-| API base URL | `https://api.example.com` | `https://api.myservice.com` |
+- **Project name** — lowercase + underscores (default: `my_app`)
+- **App names** — comma-separated (default: `app`, e.g. `client, admin`)
+- **Organization** — reverse domain (default: `com.example`)
+- **Platforms** — comma-separated: ios, android, web, macos, linux, windows (default: `ios,android,web`)
+- **API base URL** — (default: `https://api.example.com`)
 
 ## What you get
 
@@ -24,22 +37,20 @@ curl -sL https://raw.githubusercontent.com/hongmono/create-flutter-monorepo/main
 my_project/
 ├── apps/
 │   ├── client/              → Flutter app (flutter create)
-│   │   ├── android/
-│   │   ├── ios/
 │   │   ├── lib/
 │   │   │   ├── main.dart
-│   │   │   ├── router/
-│   │   │   ├── provider/
-│   │   │   ├── data/
-│   │   │   └── ui/example/
+│   │   │   ├── router/      → GoRouter (riverpod_annotation)
+│   │   │   ├── provider/    → Riverpod providers (Dio, services, repositories)
+│   │   │   ├── data/        → Repository implementations
+│   │   │   └── ui/example/  → Example screen + notifier
 │   │   └── pubspec.yaml
 │   └── admin/               → Flutter app (flutter create)
 ├── packages/
-│   ├── core/                → Domain models + abstract repositories (freezed)
-│   ├── network/             → Dio + Retrofit services + DTOs
+│   ├── core/                → Domain models (Freezed) + abstract repositories
+│   ├── network/             → Dio client factory + Retrofit services + DTOs
 │   ├── design_system/       → Design tokens + theme + shared widgets
 │   └── lint_rules/          → Shared analysis_options
-├── pubspec.yaml             → Pub Workspaces root
+├── pubspec.yaml             → Pub Workspaces root + Melos config
 └── README.md
 ```
 
@@ -55,20 +66,25 @@ melos run gen
 
 ## Melos scripts
 
-| Command | Description |
-|---------|-------------|
-| `melos run gen` | Run build_runner (freezed + retrofit + riverpod) |
-| `melos run gen:watch` | Watch mode for build_runner |
-| `melos run test` | Run tests in all packages |
-| `melos run analyze` | Analyze all packages |
-| `melos run format` | Format all packages |
-| `melos run clean` | Clean all packages |
+- `melos run gen` — Run build_runner (freezed + retrofit + riverpod)
+- `melos run gen:watch` — Watch mode for build_runner
+- `melos run test` — Run tests in all packages
+- `melos run analyze` — Analyze all packages
+- `melos run format` — Format all packages
+- `melos run clean` — Clean all packages
 
 ## Stack
 
-- **State Management**: Riverpod (with code generation)
+- **State Management**: Riverpod 3.0 (with code generation)
 - **Routing**: GoRouter
-- **HTTP**: Dio + Retrofit
+- **HTTP**: Dio (Riverpod-managed) + Retrofit
 - **Code Generation**: Freezed, json_serializable, riverpod_generator
 - **Design System**: Shared design tokens + theme + widgets
 - **Monorepo**: Melos v7 + Pub Workspaces
+
+## Features
+
+- SDK versions are automatically detected from your local Flutter/Dart installation
+- Package versions are fetched live from pub.dev
+- Update mode: re-run on an existing project to add missing components
+- Input validation for project names, platforms, and organization

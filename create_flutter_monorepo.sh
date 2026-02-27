@@ -86,15 +86,49 @@ command -v curl    >/dev/null 2>&1 || err "curl not found."
 command -v git     >/dev/null 2>&1 || err "git not found."
 
 DART_VERSION=$(dart --version 2>&1 | sed -n 's/.*Dart SDK version: \([0-9][0-9.]*\).*/\1/p')
-info "Dart $DART_VERSION detected"
+DART_MAJOR_MINOR=$(echo "$DART_VERSION" | sed 's/\([0-9]*\.[0-9]*\).*/\1/')
+info "Dart $DART_VERSION detected (SDK constraint: ^$DART_MAJOR_MINOR.0)"
 
-# ── Fetch latest version from pub.dev (macOS + Linux compatible) ──
+FLUTTER_VERSION=$(flutter --version 2>&1 | sed -n 's/.*Flutter \([0-9][0-9.]*\).*/\1/p' | head -1)
+FLUTTER_MAJOR_MINOR=$(echo "$FLUTTER_VERSION" | sed 's/\([0-9]*\.[0-9]*\).*/\1/')
+info "Flutter $FLUTTER_VERSION detected (constraint: >=$FLUTTER_MAJOR_MINOR.0)"
+
+# ── Validate inputs ──
+IFS=',' read -ra PLATFORMS_ARR <<< "$PLATFORMS_INPUT"
+VALID_PLATFORMS="ios android web macos linux windows"
+for p in "${PLATFORMS_ARR[@]}"; do
+  p=$(echo "$p" | tr -d ' ')
+  if ! echo "$VALID_PLATFORMS" | grep -qw "$p"; then
+    err "Invalid platform '$p'. Valid: $VALID_PLATFORMS"
+  fi
+done
+
+if [[ ! "$ORG" =~ ^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$ ]]; then
+  warn "Organization '$ORG' may not be a valid reverse domain (e.g. com.example)"
+fi
+
+if [[ ! "$BASE_URL" =~ ^https?:// ]]; then
+  warn "BASE_URL '$BASE_URL' doesn't start with http:// or https://"
+fi
+
+# ── Fetch latest version from pub.dev ──
 get_version() {
   local pkg="$1"
   local version
-  version=$(curl -sf "https://pub.dev/api/packages/$pkg" \
-    | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
-    | head -1) || true
+
+  local json
+  json=$(curl -sf "https://pub.dev/api/packages/$pkg") || true
+
+  if [[ -n "$json" ]]; then
+    # Try python3 first, then jq, then sed fallback
+    if command -v python3 >/dev/null 2>&1; then
+      version=$(echo "$json" | python3 -c "import sys,json; print(json.load(sys.stdin)['latest']['version'])" 2>/dev/null) || true
+    elif command -v jq >/dev/null 2>&1; then
+      version=$(echo "$json" | jq -r '.latest.version' 2>/dev/null) || true
+    else
+      version=$(echo "$json" | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1) || true
+    fi
+  fi
 
   if [[ -z "$version" ]]; then
     warn "Failed to fetch version for '$pkg', using 'any'"
@@ -156,7 +190,9 @@ for APP_NAME in "${APP_NAMES[@]}"; do
     info "Skipping flutter create (exists): ${DIM}apps/$APP_NAME${NC}"
   else
     info "Running flutter create for ${BOLD}$APP_NAME${NC}..."
-    flutter create --org "$ORG" --project-name "$APP_NAME" --platforms "$PLATFORMS_INPUT" "apps/$APP_NAME" --empty >/dev/null 2>&1
+    if ! flutter create --org "$ORG" --project-name "$APP_NAME" --platforms "$PLATFORMS_INPUT" "apps/$APP_NAME" --empty >/dev/null; then
+      err "flutter create failed for '$APP_NAME'. Check the output above."
+    fi
     log "flutter create apps/$APP_NAME"
   fi
 done
@@ -175,7 +211,7 @@ name: $PROJECT_NAME
 publish_to: none
 
 environment:
-  sdk: ^3.9.0
+  sdk: ^$DART_MAJOR_MINOR.0
 
 workspace:
 ${WORKSPACE_APPS}  - packages/design_system
@@ -189,24 +225,28 @@ dev_dependencies:
 melos:
   scripts:
     gen:
-      run: melos exec -c 1 --depends-on build_runner -- dart run build_runner build -d
+      exec: dart run build_runner build -d
       description: Run build_runner (freezed + retrofit + riverpod)
+      packageFilters:
+        dependsOn: build_runner
     gen:watch:
-      run: melos exec -c 1 --depends-on build_runner -- dart run build_runner watch -d
+      exec: dart run build_runner watch -d
       description: Watch mode for build_runner
+      packageFilters:
+        dependsOn: build_runner
     test:
-      run: melos exec -- flutter test
+      exec: flutter test
+      description: Run tests in all packages
       packageFilters:
         dirExists: test
-      description: Run tests in all packages
     analyze:
-      run: melos exec -- dart analyze .
+      exec: dart analyze .
       description: Analyze all packages
     format:
-      run: melos exec -- dart format .
+      exec: dart format .
       description: Format all packages
     clean:
-      run: melos exec -- flutter clean
+      exec: flutter clean
       description: Clean all packages
 YAML
 log "Root pubspec.yaml"
@@ -240,25 +280,44 @@ if write_if_missing README.md; then
 cat > README.md << MD
 # $PROJECT_NAME
 
-Flutter Melos v7 monorepo with Riverpod + Retrofit + Dio.
+Flutter Melos v7 monorepo with Riverpod + Retrofit + Dio + Freezed.
+
+## Prerequisites
+
+- Flutter SDK >= $FLUTTER_MAJOR_MINOR.0
+- Dart SDK >= $DART_MAJOR_MINOR.0
+- [Melos](https://melos.invertase.dev/) (\`dart pub global activate melos\`)
 
 ## Setup
 
 \`\`\`bash
+cd $PROJECT_NAME
 dart pub get
 melos bootstrap
 melos run gen
 \`\`\`
 
+## Project Structure
+
+\`\`\`
+$PROJECT_NAME/
+├── apps/                  # Flutter applications
+${WORKSPACE_APPS}├── packages/
+│   ├── core/              # Domain models (Freezed) & abstract repositories
+│   ├── network/           # Dio client, Retrofit services, DTOs
+│   ├── design_system/     # Theme, tokens, shared widgets
+│   └── lint_rules/        # Shared analysis options
+└── pubspec.yaml           # Workspace root
+\`\`\`
+
 ## Scripts
 
-| Command | Description |
-|---------|-------------|
-| \`melos run gen\` | Run build_runner (freezed + retrofit + riverpod) |
-| \`melos run gen:watch\` | Watch mode for build_runner |
-| \`melos run test\` | Run tests in all packages |
-| \`melos run analyze\` | Analyze all packages |
-| \`melos run format\` | Format all packages |
+- \`melos run gen\` — Run build_runner (freezed + retrofit + riverpod)
+- \`melos run gen:watch\` — Watch mode for build_runner
+- \`melos run test\` — Run tests in all packages
+- \`melos run analyze\` — Analyze all packages
+- \`melos run format\` — Format all packages
+- \`melos run clean\` — Clean all packages
 MD
 log "README.md"
 fi
@@ -276,7 +335,7 @@ publish_to: none
 resolution: workspace
 
 environment:
-  sdk: ^3.9.0
+  sdk: ^$DART_MAJOR_MINOR.0
 
 dependencies:
   flutter_lints: $V_FLUTTER_LINTS
@@ -317,7 +376,7 @@ publish_to: none
 resolution: workspace
 
 environment:
-  sdk: ^3.9.0
+  sdk: ^$DART_MAJOR_MINOR.0
 
 dependencies:
   freezed_annotation: $V_FREEZED_ANNOTATION
@@ -332,8 +391,6 @@ include: package:lint_rules/analysis_options.yaml
 YAML
 
 cat > packages/core/lib/core.dart << 'DART'
-library core;
-
 export 'src/model/example.dart';
 export 'src/repository/example_repository.dart';
 DART
@@ -379,7 +436,7 @@ publish_to: none
 resolution: workspace
 
 environment:
-  sdk: ^3.9.0
+  sdk: ^$DART_MAJOR_MINOR.0
 
 dependencies:
   core:
@@ -400,8 +457,6 @@ include: package:lint_rules/analysis_options.yaml
 YAML
 
 cat > packages/network/lib/network.dart << 'DART'
-library network;
-
 export 'src/dio_client.dart';
 export 'src/service/example_service.dart';
 export 'src/dto/example_dto.dart';
@@ -413,21 +468,23 @@ import 'package:dio/dio.dart';
 import 'interceptor/auth_interceptor.dart';
 import 'interceptor/error_interceptor.dart';
 
-final dio = Dio(
-  BaseOptions(
-    baseUrl: '$BASE_URL',
-    connectTimeout: const Duration(seconds: 5),
-    receiveTimeout: const Duration(seconds: 10),
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    },
-  ),
-)..interceptors.addAll([
-    AuthInterceptor(),
-    ErrorInterceptor(),
-    LogInterceptor(requestBody: true, responseBody: true),
-  ]);
+Dio createDio({String baseUrl = '$BASE_URL'}) {
+  return Dio(
+    BaseOptions(
+      baseUrl: baseUrl,
+      connectTimeout: const Duration(seconds: 5),
+      receiveTimeout: const Duration(seconds: 10),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    ),
+  )..interceptors.addAll([
+      AuthInterceptor(),
+      ErrorInterceptor(),
+      LogInterceptor(requestBody: true, responseBody: true),
+    ]);
+}
 DART
 
 cat > packages/network/lib/src/interceptor/auth_interceptor.dart << 'DART'
@@ -516,8 +573,8 @@ publish_to: none
 resolution: workspace
 
 environment:
-  sdk: ^3.9.0
-  flutter: ">=3.29.0"
+  sdk: ^$DART_MAJOR_MINOR.0
+  flutter: ">=$FLUTTER_MAJOR_MINOR.0"
 
 dependencies:
   flutter:
@@ -529,8 +586,6 @@ include: package:lint_rules/analysis_options.yaml
 YAML
 
 cat > packages/design_system/lib/design_system.dart << 'DART'
-library design_system;
-
 export 'src/tokens/colors.dart';
 export 'src/tokens/typography.dart';
 export 'src/tokens/spacing.dart';
@@ -691,8 +746,8 @@ resolution: workspace
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.9.0
-  flutter: ">=3.29.0"
+  sdk: ^$DART_MAJOR_MINOR.0
+  flutter: ">=$FLUTTER_MAJOR_MINOR.0"
 
 dependencies:
   flutter:
@@ -700,6 +755,7 @@ dependencies:
   design_system:
   core:
   network:
+  dio: $V_DIO
   flutter_riverpod: $V_FLUTTER_RIVERPOD
   riverpod_annotation: $V_RIVERPOD_ANNOTATION
   go_router: $V_GO_ROUTER
@@ -745,12 +801,15 @@ DART
 
 cat > "apps/$APP_NAME/lib/router/app_router.dart" << 'DART'
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../ui/example/example_screen.dart';
 
-final appRouterProvider = Provider<GoRouter>((ref) {
+part 'app_router.g.dart';
+
+@riverpod
+GoRouter appRouter(Ref ref) {
   return GoRouter(
     initialLocation: '/',
     routes: [
@@ -760,11 +819,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
-});
+}
 DART
 
 cat > "apps/$APP_NAME/lib/provider/providers.dart" << 'DART'
 import 'package:core/core.dart';
+import 'package:dio/dio.dart';
 import 'package:network/network.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -773,10 +833,13 @@ import '../data/example_repository_impl.dart';
 part 'providers.g.dart';
 
 @riverpod
-ExampleService exampleService(ref) => ExampleService(dio);
+Dio dio(Ref ref) => createDio();
 
 @riverpod
-ExampleRepository exampleRepository(ref) =>
+ExampleService exampleService(Ref ref) => ExampleService(ref.watch(dioProvider));
+
+@riverpod
+ExampleRepository exampleRepository(Ref ref) =>
     ExampleRepositoryImpl(ref.watch(exampleServiceProvider));
 DART
 
