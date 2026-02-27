@@ -1241,9 +1241,3 @@ if [[ ${#SERVER_NAMES[@]} -gt 0 ]]; then
 fi
 
 echo -e ""
-
-# ── Cleanup: delete this script if run from a file ──
-SCRIPT_PATH="${BASH_SOURCE[0]:-}"
-if [[ -n "$SCRIPT_PATH" && -f "$SCRIPT_PATH" ]]; then
-  rm -f "$SCRIPT_PATH"
-fi
