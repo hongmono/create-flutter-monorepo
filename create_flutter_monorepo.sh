@@ -72,8 +72,8 @@ if [[ "$SERVER_NAMES_INPUT" != "none" ]]; then
   IFS=',' read -ra SERVER_NAMES_RAW <<< "$SERVER_NAMES_INPUT"
   for name in "${SERVER_NAMES_RAW[@]}"; do
     name=$(echo "$name" | tr -d ' ')
-    if [[ ! "$name" =~ ^[a-z][a-z0-9_]*$ ]]; then
-      err "Invalid server name '$name'. Use lowercase + underscores."
+    if [[ ! "$name" =~ ^[a-z][a-z0-9_-]*$ ]]; then
+      err "Invalid server name '$name'. Use lowercase, underscores, or hyphens."
     fi
     SERVER_NAMES+=("$name")
   done
