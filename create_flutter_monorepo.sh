@@ -513,7 +513,7 @@ targets:
       injectable_generator:injectable_builder:
         options:
           auto_register: true
-          file_name_pattern: "_repository_impl$|_usecase$"
+          file_name_pattern: "_repository_impl$|_usecase$|_datasource$"
 YAML
 log "packages/data/build.yaml"
 
@@ -546,16 +546,11 @@ import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
 
 import '../network/dio_client.dart';
-import '../datasource/remote/example_remote_datasource.dart';
 
 @module
 abstract class DataModule {
   @singleton
   Dio get dio => createDio();
-
-  @injectable
-  ExampleRemoteDataSource exampleRemoteDataSource(Dio dio) =>
-      ExampleRemoteDataSource(dio);
 }
 DART
 

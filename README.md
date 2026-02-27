@@ -164,33 +164,33 @@ Widget
 injectable_generator:injectable_builder:
   options:
     auto_register: true
-    file_name_pattern: "_repository_impl$|_usecase$"
+    file_name_pattern: "_repository_impl$|_usecase$|_datasource$"
 ```
 
 **No annotation needed!** Just name your file correctly:
 
 ```
 user_repository_impl.dart     → matches _repository_impl$ → auto-registered as UserRepository
-get_examples_usecase.dart     → matches _usecase$          → auto-registered as GetExamplesUsecase
+get_examples_usecase.dart     → matches _usecase$          → auto-registered
+user_remote_datasource.dart   → matches _datasource$       → auto-registered (Retrofit factory constructor)
 ```
 
-The class must `implement` an abstract class — Injectable registers it as that interface automatically.
+- `*_repository_impl` — class must `implement` an abstract class → registered as that interface
+- `*_datasource` — Retrofit abstract class with factory constructor → Injectable calls the factory
 
 ### What still needs @module
 
-Third-party objects and factory-constructed objects can't be auto-registered. Use `@module` in `data_module.dart`:
+Only third-party objects that you don't own:
 
 ```dart
 @module
 abstract class DataModule {
   @singleton
-  Dio get dio => createDio();               // Third-party object
-
-  @injectable
-  UserRemoteDataSource userDs(Dio dio) =>
-      UserRemoteDataSource(dio);            // Retrofit factory constructor
+  Dio get dio => createDio();    // Third-party, only this needs manual registration
 }
 ```
+
+Everything else is auto-registered by file name.
 
 ### GetIt → Riverpod bridge
 
@@ -312,14 +312,9 @@ class UserRepositoryImpl implements UserRepository {
 }
 ```
 
-Register DataSource in `data_module.dart`:
-
-```dart
-@injectable
-UserRemoteDataSource userRemoteDataSource(Dio dio) => UserRemoteDataSource(dio);
-```
-
 Update barrel: `packages/data/lib/data.dart`
+
+> DataSource is auto-registered by file name (`_datasource$`). No `data_module.dart` changes needed!
 
 ### Step 3: App DI bridge
 
@@ -365,7 +360,7 @@ melos run gen
 
 - **`*_repository_impl.dart`** — Auto-registered by Injectable (implements abstract Repository)
 - **`*_usecase.dart`** — Auto-registered by Injectable
-- **`*_remote_datasource.dart`** — Retrofit client, registered manually via `@module`
+- **`*_remote_datasource.dart`** — Retrofit client, auto-registered (`_datasource$` pattern)
 - **`*_dto.dart`** — Freezed DTO with `fromJson()` and `toDomain()`
 - **`*_notifier.dart`** — Riverpod AsyncNotifier (`@riverpod class`)
 - **`*_screen.dart`** — Flutter ConsumerWidget
