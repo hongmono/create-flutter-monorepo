@@ -13,7 +13,9 @@ curl -sL https://raw.githubusercontent.com/hongmono/create-flutter-monorepo/main
 | Prompt | Default | Example |
 |--------|---------|---------|
 | Project name | `my_app` | `my_project` |
-| App names (comma-separated) | `app` | `client, admin` |
+| App names | `app` | `client, admin` |
+| Organization | `com.example` | `com.hongmono` |
+| Platforms | `ios,android,web` | `ios,android` |
 | API base URL | `https://api.example.com` | `https://api.myservice.com` |
 
 ## What you get
@@ -21,16 +23,46 @@ curl -sL https://raw.githubusercontent.com/hongmono/create-flutter-monorepo/main
 ```
 my_project/
 ├── apps/
-│   ├── client/          → Flutter app
-│   └── admin/           → Flutter app
+│   ├── client/              → Flutter app (flutter create)
+│   │   ├── android/
+│   │   ├── ios/
+│   │   ├── lib/
+│   │   │   ├── main.dart
+│   │   │   ├── router/
+│   │   │   ├── provider/
+│   │   │   ├── data/
+│   │   │   └── ui/example/
+│   │   └── pubspec.yaml
+│   └── admin/               → Flutter app (flutter create)
 ├── packages/
-│   ├── core/            → Domain models + abstract repositories (freezed)
-│   ├── network/         → Dio + Retrofit services + DTOs
-│   ├── design_system/   → Design tokens + theme + shared widgets
-│   └── lint_rules/      → Shared analysis_options
-├── pubspec.yaml         → Pub Workspaces root
+│   ├── core/                → Domain models + abstract repositories (freezed)
+│   ├── network/             → Dio + Retrofit services + DTOs
+│   ├── design_system/       → Design tokens + theme + shared widgets
+│   └── lint_rules/          → Shared analysis_options
+├── pubspec.yaml             → Pub Workspaces root
 └── README.md
 ```
+
+## Setup (after scaffolding)
+
+```bash
+cd my_project
+dart pub get
+dart pub global activate melos
+melos bootstrap
+melos run gen
+```
+
+## Melos scripts
+
+| Command | Description |
+|---------|-------------|
+| `melos run gen` | Run build_runner (freezed + retrofit + riverpod) |
+| `melos run gen:watch` | Watch mode for build_runner |
+| `melos run test` | Run tests in all packages |
+| `melos run analyze` | Analyze all packages |
+| `melos run format` | Format all packages |
+| `melos run clean` | Clean all packages |
 
 ## Stack
 
