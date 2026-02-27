@@ -50,6 +50,7 @@ if [[ -d "$PROJECT_NAME" ]]; then
 fi
 
 APP_NAMES_INPUT=$(ask "App names, comma-separated" "app")
+ORG=$(ask "Organization (reverse domain)" "com.example")
 BASE_URL=$(ask "API base URL" "https://api.example.com")
 
 # Parse app names into array
@@ -126,11 +127,22 @@ log "flutter_lints: ${CYAN}$V_FLUTTER_LINTS${NC}"
 
 echo ""
 
-# ── Create directory structure ──
+# ── Create root directory ──
 info "Creating project: ${BOLD}$PROJECT_NAME${NC}"
 
 mkdir -p "$PROJECT_NAME"
 cd "$PROJECT_NAME"
+
+# ══════════════════════════════════════
+# flutter create (apps)
+# ══════════════════════════════════════
+mkdir -p apps
+
+for APP_NAME in "${APP_NAMES[@]}"; do
+  info "Running flutter create for ${BOLD}$APP_NAME${NC}..."
+  flutter create --org "$ORG" --project-name "$APP_NAME" "apps/$APP_NAME" --empty >/dev/null 2>&1
+  log "flutter create apps/$APP_NAME"
+done
 
 # ── Build workspace entries ──
 WORKSPACE_APPS=""
@@ -225,16 +237,6 @@ melos run gen
 | \`melos run test\` | Run tests in all packages |
 | \`melos run analyze\` | Analyze all packages |
 | \`melos run format\` | Format all packages |
-
-## Structure
-
-\`\`\`
-apps/app              → Main Flutter app (UI + Repository impl)
-packages/core         → Domain models + abstract repositories
-packages/network      → Dio + Retrofit services + DTOs
-packages/design_system → Design tokens + shared widgets
-packages/lint_rules   → Shared analysis_options
-\`\`\`
 MD
 log "README.md"
 
@@ -625,15 +627,18 @@ DART
 log "packages/design_system"
 
 # ══════════════════════════════════════
-# apps (loop)
+# Overwrite apps with monorepo structure
 # ══════════════════════════════════════
 for APP_NAME in "${APP_NAMES[@]}"; do
+
+info "Setting up monorepo structure for ${BOLD}$APP_NAME${NC}..."
 
 mkdir -p "apps/$APP_NAME/lib/ui/example" \
          "apps/$APP_NAME/lib/data" \
          "apps/$APP_NAME/lib/provider" \
          "apps/$APP_NAME/lib/router"
 
+# Overwrite pubspec.yaml with workspace deps
 cat > "apps/$APP_NAME/pubspec.yaml" << YAML
 name: $APP_NAME
 description: Flutter application
@@ -666,6 +671,7 @@ cat > "apps/$APP_NAME/analysis_options.yaml" << 'YAML'
 include: package:lint_rules/analysis_options.yaml
 YAML
 
+# Overwrite main.dart
 cat > "apps/$APP_NAME/lib/main.dart" << 'DART'
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -797,7 +803,7 @@ class ExampleScreen extends ConsumerWidget {
 }
 DART
 
-log "apps/$APP_NAME"
+log "apps/$APP_NAME (monorepo setup)"
 
 done
 
