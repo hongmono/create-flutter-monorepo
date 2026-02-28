@@ -1,104 +1,104 @@
 # create-flutter-monorepo
 
-Flutter Melos v7 monorepo scaffolder with **DDD architecture** — GetIt + Injectable, Riverpod 3.0, Retrofit, Dio, Freezed.
+Flutter Melos v7 모노레포 스캐폴더. **DDD 아키텍처** + GetIt/Injectable + Riverpod 3.0 + Retrofit + Freezed + slang.
 
-## Prerequisites
+## 사전 준비
 
 - Flutter SDK (stable)
 - Dart SDK >= 3.x
 - `git`, `curl`
 
-## Quick Start
+## 시작하기
 
-**Option 1**: Download and run locally (recommended)
+**방법 1**: 다운로드 후 실행 (권장)
 
 ```bash
 curl -sLO https://raw.githubusercontent.com/hongmono/create-flutter-monorepo/main/create_flutter_monorepo.sh
 bash create_flutter_monorepo.sh
 ```
 
-**Option 2**: Pipe directly
+**방법 2**: 파이프로 바로 실행
 
 ```bash
 curl -sL https://raw.githubusercontent.com/hongmono/create-flutter-monorepo/main/create_flutter_monorepo.sh | bash
 ```
 
-The script will ask for:
+스크립트가 물어보는 것들:
 
-- **Project name** — lowercase + underscores (default: `my_app`)
-- **App names** — comma-separated (default: `app`, e.g. `client, admin`)
-- **Organization** — reverse domain (default: `com.example`)
-- **Platforms** — ios, android, web, macos, linux, windows (default: `ios,android,web`)
-- **API base URL** — (default: `https://api.example.com`)
+- **프로젝트 이름** — 소문자 + 언더스코어 (기본: `my_app`)
+- **앱 이름** — 쉼표 구분 (기본: `app`, 예: `client, admin`)
+- **조직명** — 역도메인 (기본: `com.example`)
+- **플랫폼** — ios, android, web, macos, linux, windows (기본: `ios,android,web`)
+- **API 기본 URL** — (기본: `https://api.example.com`)
 
-After scaffolding:
+스캐폴딩 후:
 
 ```bash
 cd my_project
 dart pub get
 dart pub global activate melos
 melos bootstrap
-melos run gen          # Generate freezed + retrofit + injectable + riverpod
+melos run gen          # freezed + retrofit + injectable + riverpod + slang 코드 생성
 ```
 
 ---
 
-## Architecture
+## 아키텍처
 
-DDD (Domain-Driven Design) 3-layer architecture with clear dependency direction:
+DDD (Domain-Driven Design) 3계층. 의존성 방향:
 
 ```
 presentation → domain ← data
 ```
 
-- **domain** is pure Dart with zero external dependencies
-- **data** depends on domain only
-- **presentation** (app) depends on domain only — data is accessed via DI
+- **domain** — 순수 Dart. 외부 의존성 없음
+- **data** — domain에만 의존
+- **presentation** (앱) — domain에만 의존. data는 DI로 접근
 
-### Project Structure
+### 프로젝트 구조
 
 ```
 my_project/
 ├── apps/
 │   ├── client/
-│   │   ├── build.yaml                         # Code gen config (generated/ subdir)
+│   │   ├── build.yaml                         # 코드젠 설정 (generated/ 하위 디렉토리)
 │   │   └── lib/
-│   │       ├── main.dart                       # Entry point (GetIt init → ProviderScope)
+│   │       ├── main.dart                       # 진입점 (GetIt 초기화 → ProviderScope)
 │   │       ├── di/
-│   │       │   ├── injection.dart              # GetIt + Injectable setup
+│   │       │   ├── injection.dart              # GetIt + Injectable 설정
 │   │       │   ├── generated/injection.config.dart
-│   │       │   ├── providers.dart              # GetIt → Riverpod bridge
+│   │       │   ├── providers.dart              # GetIt → Riverpod 브릿지
 │   │       │   └── generated/providers.g.dart
 │   │       ├── i18n/
-│   │       │   ├── strings_ko.i18n.yaml         # Korean (base)
-│   │       │   ├── strings_en.i18n.yaml         # English
+│   │       │   ├── strings_ko.i18n.yaml         # 한국어 (base)
+│   │       │   ├── strings_en.i18n.yaml         # 영어
 │   │       │   └── generated/strings.g.dart
 │   │       └── presentation/
 │   │           ├── router/
 │   │           │   ├── app_router.dart          # GoRouter (@riverpod)
 │   │           │   └── generated/app_router.g.dart
-│   │           └── example/                     # Feature directory
+│   │           └── example/                     # 기능 디렉토리
 │   │               ├── example_screen.dart       # UI (ConsumerWidget)
-│   │               ├── example_notifier.dart     # State (@riverpod AsyncNotifier)
+│   │               ├── example_notifier.dart     # 상태 (@riverpod AsyncNotifier)
 │   │               └── generated/example_notifier.g.dart
-│   └── admin/                                   # Additional app (same structure)
+│   └── admin/                                   # 추가 앱 (같은 구조)
 │
 ├── packages/
-│   ├── domain/                      # DDD Domain Layer (pure Dart)
+│   ├── domain/                      # DDD Domain 계층 (순수 Dart)
 │   │   ├── build.yaml
 │   │   └── lib/
 │   │       ├── domain.dart           # Barrel export
 │   │       └── src/
-│   │           ├── entity/           # Freezed value objects
+│   │           ├── entity/           # Freezed 값 객체
 │   │           │   ├── example.dart
 │   │           │   └── generated/example.freezed.dart
-│   │           ├── repository/       # Abstract repository contracts
+│   │           ├── repository/       # 추상 Repository 계약
 │   │           │   └── example_repository.dart
-│   │           └── failure/          # Domain error types
+│   │           └── failure/          # 도메인 에러 타입
 │   │               ├── app_failure.dart
 │   │               └── generated/app_failure.freezed.dart
 │   │
-│   ├── data/                        # DDD Data Layer (Injectable)
+│   ├── data/                        # DDD Data 계층 (Injectable)
 │   │   ├── build.yaml               # auto_register: true
 │   │   └── lib/
 │   │       ├── data.dart             # Barrel export
@@ -106,9 +106,9 @@ my_project/
 │   │           ├── di/
 │   │           │   ├── data_injection.dart       # @InjectableInit.microPackage()
 │   │           │   ├── generated/data_injection.config.dart
-│   │           │   └── data_module.dart          # @module (Dio, DataSource)
+│   │           │   └── data_module.dart          # @module (Dio @singleton)
 │   │           ├── repository/
-│   │           │   └── example_repository_impl.dart  # Auto-registered!
+│   │           │   └── example_repository_impl.dart  # 자동 등록!
 │   │           ├── datasource/
 │   │           │   └── remote/
 │   │           │       ├── example_remote_datasource.dart  # Retrofit
@@ -117,52 +117,52 @@ my_project/
 │   │           │           ├── example_dto.dart            # Freezed + fromJson + toDomain()
 │   │           │           └── generated/
 │   │           └── network/
-│   │               ├── dio_client.dart           # createDio() factory
+│   │               ├── dio_client.dart           # createDio() 팩토리
 │   │               └── interceptor/
 │   │                   ├── auth_interceptor.dart
 │   │                   └── error_interceptor.dart
 │   │
-│   ├── design_system/               # Shared UI components
+│   ├── design_system/               # 공유 UI 컴포넌트
 │   │   └── lib/src/
 │   │       ├── tokens/               # Colors, Typography, Spacing
 │   │       ├── theme/                # AppTheme (light/dark)
-│   │       └── widgets/              # AppButton, etc.
+│   │       └── widgets/              # AppButton 등
 │   │
-│   └── lint_rules/                  # Shared analysis_options.yaml
+│   └── lint_rules/                  # 공유 analysis_options.yaml
 │
-└── pubspec.yaml                     # Workspace root + Melos config
+└── pubspec.yaml                     # Workspace 루트 + Melos 설정
 ```
 
 ---
 
-## Dependency Injection
+## 의존성 주입 (DI)
 
-Hybrid DI: **GetIt + Injectable** for service objects, **Riverpod** for UI state only.
+하이브리드 DI: **GetIt + Injectable** (서비스 객체) + **Riverpod** (UI 상태만).
 
-### Why hybrid?
+### 왜 하이브리드?
 
-- **GetIt + Injectable**: Service layer objects (Dio, DataSource, Repository) — singleton/factory lifecycle, auto-registration by file name
-- **Riverpod**: UI state (Notifier, Router) — reactive, widget-aware, auto-dispose
+- **GetIt + Injectable**: 서비스 계층 (Dio, DataSource, Repository) — 싱글톤/팩토리 라이프사이클, 파일명으로 자동 등록
+- **Riverpod**: UI 상태 (Notifier, Router) — 반응형, 위젯 인식, 자동 해제
 
-### How it works
+### 동작 흐름
 
 ```
 main()
-  → configureDependencies()         # GetIt registers all services
-  → ProviderScope(child: MyApp())   # Riverpod wraps the widget tree
+  → configureDependencies()         # GetIt이 모든 서비스 등록
+  → ProviderScope(child: MyApp())   # Riverpod이 위젯 트리 감싸기
 
 Widget
-  → ref.watch(exampleNotifierProvider)   # Riverpod (UI state)
-    → ref.watch(exampleRepositoryProvider)  # Riverpod (GetIt bridge)
-      → getIt<ExampleRepository>()           # GetIt (service object)
-        → ExampleRepositoryImpl              # Injectable auto-registered
-          → ExampleRemoteDataSource          # Injectable @module
+  → ref.watch(exampleNotifierProvider)   # Riverpod (UI 상태)
+    → ref.watch(exampleRepositoryProvider)  # Riverpod (GetIt 브릿지)
+      → getIt<ExampleRepository>()           # GetIt (서비스 객체)
+        → ExampleRepositoryImpl              # Injectable 자동 등록
+          → ExampleRemoteDataSource          # Injectable 자동 등록
             → Dio                            # Injectable @singleton
 ```
 
-### Auto-registration by file name
+### 파일명 기반 자동 등록
 
-`build.yaml` in the data package configures Injectable to auto-register classes based on file name patterns:
+data 패키지의 `build.yaml`에서 파일명 패턴으로 자동 등록 설정:
 
 ```yaml
 injectable_generator:injectable_builder:
@@ -171,34 +171,34 @@ injectable_generator:injectable_builder:
     file_name_pattern: "_repository_impl$|_usecase$|_datasource$"
 ```
 
-**No annotation needed!** Just name your file correctly:
+**어노테이션 필요 없음!** 파일명만 맞추면 됨:
 
 ```
-user_repository_impl.dart     → matches _repository_impl$ → auto-registered as UserRepository
-get_examples_usecase.dart     → matches _usecase$          → auto-registered
-user_remote_datasource.dart   → matches _datasource$       → auto-registered (Retrofit factory constructor)
+user_repository_impl.dart     → _repository_impl$ 매칭 → UserRepository로 자동 등록
+get_examples_usecase.dart     → _usecase$ 매칭        → 자동 등록
+user_remote_datasource.dart   → _datasource$ 매칭     → 자동 등록 (Retrofit factory)
 ```
 
-- `*_repository_impl` — class must `implement` an abstract class → registered as that interface
-- `*_datasource` — Retrofit abstract class with factory constructor → Injectable calls the factory
+- `*_repository_impl` — 추상 클래스를 `implement` → 그 인터페이스로 등록
+- `*_datasource` — Retrofit 추상 클래스 (factory constructor) → Injectable이 factory 호출
 
-### What still needs @module
+### @module이 필요한 경우
 
-Only third-party objects that you don't own:
+직접 소유하지 않는 서드파티 객체만:
 
 ```dart
 @module
 abstract class DataModule {
   @singleton
-  Dio get dio => createDio();    // Third-party, only this needs manual registration
+  Dio get dio => createDio();    // 서드파티라 수동 등록 필요
 }
 ```
 
-Everything else is auto-registered by file name.
+나머지는 전부 파일명으로 자동 등록.
 
-### GetIt → Riverpod bridge
+### GetIt → Riverpod 브릿지
 
-In `di/providers.dart`, bridge GetIt services into Riverpod for use in widgets:
+`di/providers.dart`에서 GetIt 서비스를 Riverpod으로 브릿지:
 
 ```dart
 @riverpod
@@ -207,13 +207,13 @@ ExampleRepository exampleRepository(Ref ref) => getIt<ExampleRepository>();
 
 ---
 
-## Code Generation
+## 코드 생성
 
-All generated files output to a `generated/` subdirectory, keeping source files clean.
+모든 생성 파일은 `generated/` 하위 디렉토리로 출력. 소스 파일이 깔끔하게 유지됨.
 
 ### build.yaml
 
-Each package has a `build.yaml` that redirects generated output:
+각 패키지의 `build.yaml`에서 생성 파일 경로 리다이렉트:
 
 ```yaml
 targets:
@@ -229,40 +229,40 @@ targets:
             "^lib/{{dir}}/{{file}}.dart": "lib/{{dir}}/generated/{{file}}.freezed.dart"
 ```
 
-### Part directives
+### part 지시자
 
-All `part` directives point to the `generated/` subdirectory:
+모든 `part` 지시자는 `generated/` 하위 디렉토리를 가리킴:
 
 ```dart
-// Before (default)
+// 기본 (일반적)
 part 'example.freezed.dart';
 
-// After (this scaffolder)
+// 이 스캐폴더
 part 'generated/example.freezed.dart';
 ```
 
 ### .gitignore
 
-Generated files are excluded from version control:
+생성 파일은 버전 관리에서 제외:
 
 ```
 **/generated/
 ```
 
-### Run code generation
+### 코드 생성 실행
 
 ```bash
-melos run gen          # One-time build
-melos run gen:watch    # Watch mode (auto-rebuild on changes)
+melos run gen          # 일회성 빌드
+melos run gen:watch    # 감시 모드 (변경 시 자동 재빌드)
 ```
 
 ---
 
-## Adding a New Feature
+## 새 기능 추가하기
 
-Example: adding a "User Profile" feature.
+예시: "유저 프로필" 기능 추가.
 
-### Step 1: Domain (pure Dart contracts)
+### 1단계: Domain (순수 Dart 계약)
 
 ```dart
 // packages/domain/lib/src/entity/user.dart
@@ -282,9 +282,9 @@ abstract class UserRepository {
 }
 ```
 
-Update barrel: `packages/domain/lib/domain.dart`
+배럴 파일 업데이트: `packages/domain/lib/domain.dart`
 
-### Step 2: Data (implementation)
+### 2단계: Data (구현)
 
 ```dart
 // packages/data/lib/src/datasource/remote/dto/user_dto.dart
@@ -306,7 +306,7 @@ abstract class UserRemoteDataSource {
 }
 
 // packages/data/lib/src/repository/user_repository_impl.dart
-// File name matches _repository_impl$ → auto-registered as UserRepository!
+// 파일명이 _repository_impl$에 매칭 → UserRepository로 자동 등록!
 class UserRepositoryImpl implements UserRepository {
   UserRepositoryImpl(this._remote);
   final UserRemoteDataSource _remote;
@@ -316,19 +316,19 @@ class UserRepositoryImpl implements UserRepository {
 }
 ```
 
-Update barrel: `packages/data/lib/data.dart`
+배럴 파일 업데이트: `packages/data/lib/data.dart`
 
-> DataSource is auto-registered by file name (`_datasource$`). No `data_module.dart` changes needed!
+> DataSource는 파일명(`_datasource$`)으로 자동 등록. data_module.dart 수정 불필요!
 
-### Step 3: App DI bridge
+### 3단계: 앱 DI 브릿지
 
 ```dart
-// apps/app/lib/di/providers.dart — add one line
+// apps/app/lib/di/providers.dart — 한 줄 추가
 @riverpod
 UserRepository userRepository(Ref ref) => getIt<UserRepository>();
 ```
 
-### Step 4: Presentation
+### 4단계: Presentation
 
 ```dart
 // apps/app/lib/presentation/profile/profile_notifier.dart
@@ -352,7 +352,7 @@ class ProfileScreen extends ConsumerWidget {
 }
 ```
 
-### Step 5: Generate & run
+### 5단계: 생성 & 실행
 
 ```bash
 melos run gen
@@ -360,7 +360,7 @@ melos run gen
 
 ---
 
-## Localization (i18n) — slang
+## 다국어 (i18n) — slang
 
 [slang](https://pub.dev/packages/slang) 기반 타입세이프 다국어 지원. YAML로 관리하고 build_runner로 생성.
 
@@ -418,49 +418,49 @@ slang_build_runner:
     output_directory: lib/i18n/generated
 ```
 
-`melos run gen`으로 다른 코드젠과 함께 한번에 생성됩니다.
+`melos run gen`으로 다른 코드젠과 함께 한번에 생성.
 
 ---
 
-## File Naming Conventions
+## 파일 네이밍 규칙
 
-- **`*_repository_impl.dart`** — Auto-registered by Injectable (implements abstract Repository)
-- **`*_usecase.dart`** — Auto-registered by Injectable
-- **`*_remote_datasource.dart`** — Retrofit client, auto-registered (`_datasource$` pattern)
-- **`*_dto.dart`** — Freezed DTO with `fromJson()` and `toDomain()`
+- **`*_repository_impl.dart`** — Injectable 자동 등록 (추상 Repository를 implement)
+- **`*_usecase.dart`** — Injectable 자동 등록
+- **`*_remote_datasource.dart`** — Retrofit 클라이언트, 자동 등록 (`_datasource$` 패턴)
+- **`*_dto.dart`** — Freezed DTO (`fromJson()` + `toDomain()`)
 - **`*_notifier.dart`** — Riverpod AsyncNotifier (`@riverpod class`)
 - **`*_screen.dart`** — Flutter ConsumerWidget
 
 ---
 
-## Melos Scripts
+## Melos 스크립트
 
-- `melos run gen` — Run build_runner in all packages (freezed + retrofit + injectable + riverpod + slang)
-- `melos run gen:watch` — Watch mode for build_runner
-- `melos run test` — Run tests in all packages
-- `melos run analyze` — Analyze all packages
-- `melos run format` — Format all packages
-- `melos run clean` — Clean all packages
+- `melos run gen` — 전체 패키지 build_runner 실행 (freezed + retrofit + injectable + riverpod + slang)
+- `melos run gen:watch` — 감시 모드
+- `melos run test` — 전체 패키지 테스트
+- `melos run analyze` — 전체 패키지 분석
+- `melos run format` — 전체 패키지 포맷
+- `melos run clean` — 전체 패키지 클린
 
 ---
 
-## Stack
+## 기술 스택
 
-- **Architecture**: DDD (Domain-Driven Design)
-- **DI**: GetIt + Injectable (service layer, auto_register by file name)
-- **State Management**: Riverpod 3.0 (UI state only)
-- **Routing**: GoRouter
+- **아키텍처**: DDD (Domain-Driven Design)
+- **DI**: GetIt + Injectable (서비스 계층, 파일명 자동 등록)
+- **상태 관리**: Riverpod 3.0 (UI 상태만)
+- **라우팅**: GoRouter
 - **HTTP**: Dio + Retrofit
-- **i18n**: slang (YAML, type-safe, build_runner 통합)
-- **Code Generation**: Freezed, json_serializable, injectable_generator, riverpod_generator, slang_build_runner
-- **Design System**: Shared design tokens + theme + widgets
-- **Monorepo**: Melos v7 + Pub Workspaces
+- **다국어**: slang (YAML, 타입세이프, build_runner 통합)
+- **코드 생성**: Freezed, json_serializable, injectable_generator, riverpod_generator, slang_build_runner
+- **디자인 시스템**: 공유 디자인 토큰 + 테마 + 위젯
+- **모노레포**: Melos v7 + Pub Workspaces
 
-## Features
+## 특징
 
-- SDK versions are automatically detected from your local Flutter/Dart installation
-- Package versions are fetched live from pub.dev
-- Update mode: re-run on an existing project to add missing components
-- Input validation for project names, platforms, and organization
-- Generated files output to `generated/` subdirectory (clean source tree)
-- Injectable auto-registration by file name pattern (zero boilerplate DI)
+- SDK 버전을 로컬 Flutter/Dart 설치에서 자동 감지
+- 패키지 버전을 pub.dev에서 실시간 조회
+- 업데이트 모드: 기존 프로젝트에 다시 실행하면 누락된 구성요소만 추가
+- 프로젝트 이름, 플랫폼, 조직명 입력 검증
+- 생성 파일이 `generated/` 하위 디렉토리로 출력 (깔끔한 소스 트리)
+- Injectable 파일명 패턴 자동 등록 (DI 보일러플레이트 제로)
